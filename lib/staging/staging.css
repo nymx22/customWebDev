@@ -1,0 +1,36 @@
+/* Testing / staging only: multi-column grid and mode indicator. */
+
+@media (min-width: 1024px) {
+  .staging .column-layout {
+    display: grid;
+    grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));
+    min-height: 100vh;
+    align-items: start;
+  }
+
+  .staging .column-slot--spacer {
+    display: block;
+    min-height: 100vh;
+  }
+
+  .staging .column-slot:not(:last-child) {
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+  }
+}
+
+.staging-mode-label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: system-ui, sans-serif;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(180, 80, 255, 0.2);
+  border-bottom: 1px solid rgba(180, 80, 255, 0.45);
+  border-right: 1px solid rgba(180, 80, 255, 0.45);
+  pointer-events: none;
+}

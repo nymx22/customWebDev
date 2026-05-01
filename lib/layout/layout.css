@@ -1,0 +1,10 @@
+/* Column layout primitives. Multi-column grid is enabled only when html has .staging (see lib/staging/staging.css). */
+.column-layout {
+  --columns-laptop: 4;
+  min-height: 100vh;
+  display: block;
+}
+
+.column-slot--spacer {
+  display: none;
+}

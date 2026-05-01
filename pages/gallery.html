@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gallery | Lens & Light</title>
+  <meta name="description" content="Explore a curated photography gallery with portraits, weddings, and editorial scenes.">
+  <link rel="stylesheet" href="../style/main.css">
+  <link rel="stylesheet" href="../style/gallery/gallery.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="../index.html">Lens & Light</a>
+    <nav class="site-nav">
+      <a aria-current="page" href="gallery.html">Gallery</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="page-intro">
+      <p class="eyebrow">Selected Work</p>
+      <h1>Gallery</h1>
+      <p>Tap an image to open full view. Use arrow keys and Escape on desktop.</p>
+    </section>
+
+    <section class="gallery-grid" aria-label="Photography gallery">
+      <button class="gallery-item" data-full="../assets/images/photo-1.jpg" aria-label="Open photo 1">
+        <img loading="lazy" src="../assets/images/photo-1.jpg" alt="Couple portrait at golden hour">
+      </button>
+      <button class="gallery-item" data-full="../assets/images/photo-2.jpg" aria-label="Open photo 2">
+        <img loading="lazy" src="../assets/images/photo-2.jpg" alt="Bride holding bouquet in soft light">
+      </button>
+      <button class="gallery-item" data-full="../assets/images/photo-3.jpg" aria-label="Open photo 3">
+        <img loading="lazy" src="../assets/images/photo-3.jpg" alt="Urban editorial portrait">
+      </button>
+      <button class="gallery-item" data-full="../assets/images/photo-4.jpg" aria-label="Open photo 4">
+        <img loading="lazy" src="../assets/images/photo-4.jpg" alt="Engagement session near waterfront">
+      </button>
+      <button class="gallery-item" data-full="../assets/images/photo-5.jpg" aria-label="Open photo 5">
+        <img loading="lazy" src="../assets/images/photo-5.jpg" alt="Studio portrait in dramatic lighting">
+      </button>
+      <button class="gallery-item" data-full="../assets/images/photo-6.jpg" aria-label="Open photo 6">
+        <img loading="lazy" src="../assets/images/photo-6.jpg" alt="Wedding details and rings close-up">
+      </button>
+    </section>
+  </main>
+
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close lightbox">&times;</button>
+    <button class="lightbox-nav prev" id="lightbox-prev" aria-label="Previous image">&#10094;</button>
+    <img id="lightbox-image" alt="Expanded gallery image">
+    <button class="lightbox-nav next" id="lightbox-next" aria-label="Next image">&#10095;</button>
+  </div>
+
+  <a class="floating-cta" href="contact.html">Book / Contact</a>
+
+  <footer class="site-footer">
+    <p>&copy; <span id="year"></span> Lens & Light. All rights reserved.</p>
+  </footer>
+
+  <script type="module" src="../js/main.js"></script>
+  <script type="module" src="../js/lib/gallery-lightbox.js"></script>
+</body>
+</html>
