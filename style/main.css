@@ -278,8 +278,9 @@ body {
     padding-bottom: 18px;
   }
 
-  /* Homepage only: one screen, no document scroll */
-  html:has(body.page-home) {
+  /* Homepage + Farewell project: no document vertical scroll on phone */
+  html:has(body.page-home),
+  html:has(body.page-farewell-mr-fuji) {
     height: 100%;
     overflow: hidden;
   }
@@ -290,17 +291,19 @@ body {
     overflow: hidden;
   }
 
+  /* Match laptop: row 1 = projects, row 2 = name at top of second row (not pushed to bottom). */
   body.page-home .portfolio.column-layout--rows-2 {
     height: 100dvh;
     max-height: 100dvh;
     min-height: 0;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 1fr 1fr;
+    align-content: stretch;
   }
 
   body.page-home .column-slot--projects {
-    flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
     display: flex;
@@ -311,5 +314,69 @@ body {
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
+  }
+
+  /* Farewell, Mr. Fuji: one screen, gallery fills space below header */
+  body.page-farewell-mr-fuji {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior-y: none;
+  }
+
+  body.page-farewell-mr-fuji .portfolio {
+    min-height: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.page-farewell-mr-fuji .projects.project-page {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 22px max(10px, env(safe-area-inset-bottom, 0px));
+  }
+
+  body.page-farewell-mr-fuji .project-page-header {
+    flex-shrink: 0;
+  }
+
+  body.page-farewell-mr-fuji .project-drag-gallery {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.page-farewell-mr-fuji .draggable-gallery {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  body.page-farewell-mr-fuji .draggable-gallery__viewport {
+    min-height: 0;
+    flex: 1 1 auto;
+    align-self: stretch;
+  }
+
+  body.page-farewell-mr-fuji .draggable-gallery__track {
+    min-height: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding-bottom: 6px;
+  }
+
+  body.page-farewell-mr-fuji .draggable-gallery__slide {
+    height: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
   }
 }
