@@ -4,15 +4,80 @@
 
 import { buildDividedGridTracks } from "./frame-layout.js";
 
+/** Default `sizes` for draggable strip thumbnails (phone vs laptop). */
+export const DEFAULT_STRIP_IMAGE_SIZES =
+  "(max-width: 900px) min(92vw, 1000px), min(44vw, 800px), min(160px, 24vw)";
+
+/** Default `sizes` for desktop zoom pane image. */
+export const DEFAULT_ZOOM_IMAGE_SIZES =
+  "(max-width: 900px) min(96vw, 1200px), min(68vw, min(1280px, 90vw))";
+
+/** Default `sizes` for gallery page lightbox full view. */
+export const DEFAULT_LIGHTBOX_IMAGE_SIZES =
+  "(max-width: 900px) 100vw, min(94vw, min(1600px, 96vw))";
+
 /**
- * @param {string | { src: string, alt?: string }} item
- * @returns {{ src: string, alt: string }}
+ * Build `srcset` with `-{width}` before the file extension (files must exist at those URLs).
+ *
+ * @param {string} src – e.g. `"/a/foo.jpg"`
+ * @param {number[]} widths – e.g. `[480, 960, 1600]`
+ * @returns {string}
+ */
+export function buildSrcsetSuffixWidths(src, widths) {
+  if (!src || !widths || !widths.length) return "";
+  const m = String(src).match(/^(.*?)(\.[a-z0-9]+)$/i);
+  if (!m) return "";
+  const base = m[1];
+  const ext = m[2];
+  return widths
+    .filter((w) => Number.isFinite(w) && w > 0)
+    .map((w) => {
+      const n = Math.round(w);
+      return `${base}-${n}${ext} ${n}w`;
+    })
+    .join(", ");
+}
+
+/**
+ * @param {string | {
+ *   src: string,
+ *   alt?: string,
+ *   srcset?: string,
+ *   sizes?: string,
+ *   fullSrc?: string,
+ *   fullSrcset?: string,
+ *   fullSizes?: string,
+ *   loading?: "lazy" | "eager",
+ *   fetchPriority?: "high" | "low" | "auto",
+ * }} item
  */
 export function normalizeImageEntry(item) {
   if (typeof item === "string") {
-    return { src: item, alt: "" };
+    return {
+      src: item,
+      alt: "",
+      srcset: "",
+      sizes: "",
+      fullSrc: "",
+      fullSrcset: "",
+      fullSizes: "",
+      loading: undefined,
+      fetchPriority: undefined,
+    };
   }
-  return { src: item.src, alt: item.alt ?? "" };
+  const o = item;
+  const fp = o.fetchPriority;
+  return {
+    src: o.src,
+    alt: o.alt ?? "",
+    srcset: typeof o.srcset === "string" ? o.srcset : "",
+    sizes: typeof o.sizes === "string" ? o.sizes : "",
+    fullSrc: typeof o.fullSrc === "string" ? o.fullSrc : "",
+    fullSrcset: typeof o.fullSrcset === "string" ? o.fullSrcset : "",
+    fullSizes: typeof o.fullSizes === "string" ? o.fullSizes : "",
+    loading: o.loading === "lazy" || o.loading === "eager" ? o.loading : undefined,
+    fetchPriority: fp === "high" || fp === "low" || fp === "auto" ? fp : undefined,
+  };
 }
 
 /**
@@ -77,9 +142,39 @@ export function initGalleryLightboxFromDom() {
 
   let current = 0;
 
+  function applyLightboxFromIndex(index) {
+    const item = items[index];
+    const thumb = item.querySelector("img");
+    const full = item.dataset.full || "";
+    image.src = full || (thumb && thumb.currentSrc) || (thumb && thumb.src) || "";
+    const fullSrcset =
+      item.dataset.fullSrcset ||
+      (thumb && thumb.dataset && thumb.dataset.fullSrcset) ||
+      (thumb && thumb.getAttribute("srcset")) ||
+      "";
+    if (fullSrcset) {
+      image.setAttribute("srcset", fullSrcset);
+    } else {
+      image.removeAttribute("srcset");
+    }
+    image.setAttribute("sizes", DEFAULT_LIGHTBOX_IMAGE_SIZES);
+    const fp = thumb && thumb.getAttribute("fetchpriority");
+    if (fp === "high" || fp === "low" || fp === "auto") {
+      if ("fetchPriority" in image) {
+        image.fetchPriority = fp;
+      } else {
+        image.setAttribute("fetchpriority", fp);
+      }
+    } else if ("fetchPriority" in image) {
+      image.fetchPriority = "high";
+    } else {
+      image.setAttribute("fetchpriority", "high");
+    }
+  }
+
   const open = (index) => {
     current = index;
-    image.src = items[current].dataset.full || "";
+    applyLightboxFromIndex(current);
     lightbox.hidden = false;
     setGalleryBodyScrollLocked(true);
   };
@@ -87,12 +182,19 @@ export function initGalleryLightboxFromDom() {
   const close = () => {
     lightbox.hidden = true;
     image.src = "";
+    image.removeAttribute("srcset");
+    image.removeAttribute("sizes");
+    if ("fetchPriority" in image) {
+      image.fetchPriority = "auto";
+    } else {
+      image.removeAttribute("fetchpriority");
+    }
     setGalleryBodyScrollLocked(false);
   };
 
   const step = (dir) => {
     current = wrapGalleryIndex(current + dir, items.length);
-    image.src = items[current].dataset.full || "";
+    applyLightboxFromIndex(current);
   };
 
   items.forEach((item, i) => item.addEventListener("click", () => open(i)));
@@ -118,7 +220,9 @@ export function initGalleryLightboxFromDom() {
  *   zoomOpenDividers?: { count: number, ratioCsv: string },
  *   zoomThumbFill?: boolean,
  *   zoomPaneMaxHeight?: string,
- * }} [options] – `zoomOpenDividers` defaults to two columns `1,3` (thumb rail ∶ zoom pane). `zoomThumbFill` true = fixed-height thumbs cropped with `object-fit: cover`; default = full rail width, whole image, variable thumb height. `zoomPaneMaxHeight` = CSS length for max height of both rail and zoom when open (e.g. `"min(85dvh, calc(100dvh - 8rem))"`); caps pane to wrapper/viewport; left scrolls, right does not.
+ *   stripImageSizes?: string,
+ *   zoomImageSizes?: string,
+ * }} [options] – `zoomOpenDividers` defaults to two columns `1,3` (thumb rail ∶ zoom pane). `zoomThumbFill` true = fixed-height thumbs cropped with `object-fit: cover`; default = full rail width, whole image, variable thumb height. `zoomPaneMaxHeight` = CSS length for max height of both rail and zoom when open (e.g. `"min(85dvh, calc(100dvh - 8rem))"`); caps pane to wrapper/viewport; left scrolls, right does not. `stripImageSizes` / `zoomImageSizes` override defaults for responsive `sizes` on strip and zoom pane (see `DEFAULT_STRIP_IMAGE_SIZES`, `DEFAULT_ZOOM_IMAGE_SIZES`).
  */
 export function createDraggableGallery(root, options) {
   if (!root) {
@@ -133,6 +237,14 @@ export function createDraggableGallery(root, options) {
       ? opts.zoomPaneMaxHeight.trim()
       : null;
   const zoomDiv = opts.zoomOpenDividers || { count: 2, ratioCsv: "1,3" };
+  const stripImageSizes =
+    typeof opts.stripImageSizes === "string" && opts.stripImageSizes.trim()
+      ? opts.stripImageSizes.trim()
+      : DEFAULT_STRIP_IMAGE_SIZES;
+  const zoomImageSizes =
+    typeof opts.zoomImageSizes === "string" && opts.zoomImageSizes.trim()
+      ? opts.zoomImageSizes.trim()
+      : DEFAULT_ZOOM_IMAGE_SIZES;
 
   function applyZoomOpenGridVars() {
     try {
@@ -215,6 +327,13 @@ export function createDraggableGallery(root, options) {
       zoom.setAttribute("aria-hidden", "true");
       zoomImg.src = "";
       zoomImg.alt = "";
+      zoomImg.removeAttribute("srcset");
+      zoomImg.removeAttribute("sizes");
+      if ("fetchPriority" in zoomImg) {
+        zoomImg.fetchPriority = "auto";
+      } else {
+        zoomImg.removeAttribute("fetchpriority");
+      }
     }
   }
 
@@ -234,8 +353,21 @@ export function createDraggableGallery(root, options) {
       enterTimer = null;
     }
 
-    zoomImg.src = img.src;
+    const zoomSrc = img.dataset.fullSrc || img.getAttribute("src") || "";
+    zoomImg.src = zoomSrc;
     zoomImg.alt = img.alt || "";
+    const zss = img.dataset.fullSrcset || img.getAttribute("srcset") || "";
+    if (zss) {
+      zoomImg.setAttribute("srcset", zss);
+    } else {
+      zoomImg.removeAttribute("srcset");
+    }
+    zoomImg.setAttribute("sizes", img.dataset.fullSizes || zoomImageSizes);
+    if ("fetchPriority" in zoomImg) {
+      zoomImg.fetchPriority = "high";
+    } else {
+      zoomImg.setAttribute("fetchpriority", "high");
+    }
     root.classList.add("draggable-gallery--zoom-open");
     zoom.setAttribute("aria-hidden", "false");
 
@@ -255,18 +387,46 @@ export function createDraggableGallery(root, options) {
 
   function appendImages(images) {
     const frag = document.createDocumentFragment();
-    for (const raw of images) {
-      const { src, alt } = normalizeImageEntry(raw);
+    images.forEach((raw, i) => {
+      const entry = normalizeImageEntry(raw);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "draggable-gallery__slide";
       btn.setAttribute("role", "listitem");
       btn.setAttribute("aria-label", "View image larger");
       const img = document.createElement("img");
-      img.src = src;
-      img.alt = alt;
+      img.src = entry.src;
+      img.alt = entry.alt;
+      if (entry.srcset) {
+        img.setAttribute("srcset", entry.srcset);
+      } else {
+        img.removeAttribute("srcset");
+      }
+      img.setAttribute("sizes", entry.sizes || stripImageSizes);
+      if (entry.fullSrc) {
+        img.dataset.fullSrc = entry.fullSrc;
+      } else {
+        delete img.dataset.fullSrc;
+      }
+      if (entry.fullSrcset) {
+        img.dataset.fullSrcset = entry.fullSrcset;
+      } else {
+        delete img.dataset.fullSrcset;
+      }
+      if (entry.fullSizes) {
+        img.dataset.fullSizes = entry.fullSizes;
+      } else {
+        delete img.dataset.fullSizes;
+      }
       img.draggable = false;
-      img.loading = "lazy";
+      const loading = entry.loading ?? (i === 0 ? "eager" : "lazy");
+      img.loading = loading;
+      const fp = entry.fetchPriority ?? (i === 0 ? "high" : "auto");
+      if ("fetchPriority" in img) {
+        img.fetchPriority = fp;
+      } else {
+        img.setAttribute("fetchpriority", fp);
+      }
       img.decoding = "async";
       btn.appendChild(img);
       btn.addEventListener("click", function () {
@@ -277,7 +437,7 @@ export function createDraggableGallery(root, options) {
         zoomImage(btn);
       });
       frag.appendChild(btn);
-    }
+    });
     track.appendChild(frag);
   }
 
