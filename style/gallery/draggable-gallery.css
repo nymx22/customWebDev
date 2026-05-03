@@ -243,76 +243,13 @@
   }
 }
 
+/* Mobile: zoom pane disabled (strip only); see gallery-core.js matchMedia */
 @media (max-width: 900px) {
   .draggable-gallery__zoom {
-    position: static;
-    transform: translateY(14px) scale(0.98);
-  }
-
-  /* Zoom open: single pane — large image only (thumb rail hidden) */
-  .draggable-gallery.draggable-gallery--zoom-open {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-    min-height: 0;
-    width: 100%;
-    flex: 1 1 auto;
-  }
-
-  .draggable-gallery--zoom-open .draggable-gallery__viewport {
     display: none !important;
   }
 
-  .draggable-gallery--zoom-open .draggable-gallery__zoom {
-    position: relative;
-    top: auto;
-    flex: 1 1 auto;
-    width: 100%;
-    min-width: 0;
-    min-height: min(52vh, 420px);
-    max-height: min(88dvh, calc(100dvh - 100px));
-    height: auto;
-    align-self: stretch;
-    overflow: hidden;
-    transform: none;
-  }
-
-  .draggable-gallery--zoom-open .draggable-gallery__zoom-image {
-    max-height: min(88dvh, calc(100dvh - 100px));
-    width: 100%;
-    height: auto;
-  }
-
-  .draggable-gallery__zoom.is-visible {
-    transform: none;
-  }
-
-  /* Zoom closed: horizontal strip unchanged */
-  .draggable-gallery:not(.draggable-gallery--zoom-open) .draggable-gallery__viewport {
-    flex: 1 1 100%;
-    min-width: 0;
-    max-width: 100%;
-    width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    touch-action: pan-x;
-  }
-
-  .draggable-gallery:not(.draggable-gallery--zoom-open) .draggable-gallery__track {
-    flex-direction: row;
-    width: max-content;
-    min-height: min(58vh, 520px);
-  }
-
-  .draggable-gallery:not(.draggable-gallery--zoom-open) .draggable-gallery__slide {
-    height: min(58vh, 520px);
-    width: auto;
-  }
-
-  .draggable-gallery:not(.draggable-gallery--zoom-open) .draggable-gallery__slide img {
-    height: 100%;
-    width: auto;
-    max-width: none;
+  .draggable-gallery__slide {
+    cursor: default;
   }
 }

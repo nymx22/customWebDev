@@ -10,4 +10,4 @@ bindDocumentGalleryKeydown — Escape / arrows when open; returns dispose()
 
 initGalleryLightboxFromDom — hooks .gallery-item + #lightbox when present
 
-createDraggableGallery(root, options?) — strip + zoom; click slide opens, click same slide again closes; setImages, addImages, clear, destroy; zoomThumbFill true = fixed thumb height + cover crop in rail; default = variable thumb height, full rail width, whole image; zoomPaneMaxHeight = CSS string sets --draggable-gallery-zoom-pane-max (rail scrolls inside cap, zoom pane no scroll, both capped; default in CSS min(58vh,520px) if unset)
+createDraggableGallery(root, options?) — strip + zoom on wide viewports; at max-width 900px zoom UI is hidden and open-zoom is no-op; click slide opens zoom (desktop), click same slide closes; setImages, addImages, clear, destroy; zoomThumbFill; zoomPaneMaxHeight (CSS string for --draggable-gallery-zoom-pane-max)

@@ -179,6 +179,17 @@ export function createDraggableGallery(root, options) {
   let activeSlide = null;
   let enterTimer = null;
 
+  function isMobileZoomDisabled() {
+    return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
+  }
+
+  function onGalleryResize() {
+    if (isMobileZoomDisabled() && root.classList.contains("draggable-gallery--zoom-open")) {
+      closeZoom();
+    }
+  }
+  window.addEventListener("resize", onGalleryResize);
+
   function onZoomPanelClick() {
     if (root.classList.contains("draggable-gallery--zoom-open")) {
       closeZoom();
@@ -210,6 +221,9 @@ export function createDraggableGallery(root, options) {
   function zoomImage(slide) {
     const img = slide.querySelector("img");
     if (!img || !zoomImg) return;
+    if (isMobileZoomDisabled()) {
+      return;
+    }
 
     if (activeSlide) activeSlide.classList.remove("is-active");
     activeSlide = slide;
@@ -282,6 +296,7 @@ export function createDraggableGallery(root, options) {
   }
 
   function destroy() {
+    window.removeEventListener("resize", onGalleryResize);
     if (zoom) {
       zoom.removeEventListener("click", onZoomPanelClick);
     }
