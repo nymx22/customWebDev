@@ -1,4 +1,4 @@
-/* Column primitives. Homepage multi-column grids use `html.staging` (lib/staging/staging.css). Contact four-column layout is live below. */
+/* Column primitives: homepage two-row grid and contact four-column grid at laptop widths. */
 
 .column-layout {
   --columns-laptop: 4;
@@ -27,6 +27,20 @@
 }
 
 @media (min-width: 1024px) {
+  /* Homepage: two rows × four columns (projects row 1 col 2, name row 2 col 2). */
+  .column-layout--rows-2 {
+    display: grid;
+    grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));
+    grid-template-rows: 1fr 1fr;
+    min-height: 100vh;
+    align-items: stretch;
+  }
+
+  .column-layout--rows-2 .column-slot--spacer {
+    display: block;
+    min-height: 0;
+  }
+
   .column-layout--contact {
     display: grid;
     grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));

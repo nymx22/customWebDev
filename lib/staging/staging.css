@@ -1,34 +1,6 @@
-/* Staging / testing: multi-column layouts, badge. Live site stays stacked until these rules are promoted to lib/layout/layout.css. */
+/* Shown only when html.staging is set by lib/staging/staging.js (?staging=1 in URL). Live loads this file but never gets html.staging, so no badge. */
 
-@media (min-width: 1024px) {
-  .staging .column-layout:not(.column-layout--rows-2) {
-    display: grid;
-    grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));
-    min-height: 100vh;
-    align-items: start;
-  }
-
-  .staging .column-layout:not(.column-layout--rows-2) .column-slot--spacer {
-    display: block;
-    min-height: 100vh;
-  }
-
-  /* Homepage: two rows × four columns (projects row 1 col 2, name row 2 col 2). */
-  .staging .column-layout--rows-2 {
-    display: grid;
-    grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));
-    grid-template-rows: 1fr 1fr;
-    min-height: 100vh;
-    align-items: stretch;
-  }
-
-  .staging .column-layout--rows-2 .column-slot--spacer {
-    display: block;
-    min-height: 0;
-  }
-}
-
-.staging-mode-label {
+.staging .staging-mode-label {
   position: fixed;
   top: 0;
   left: 0;

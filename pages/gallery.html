@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="../assets/images/tomato.png" type="image/png">
   <title>Gallery | Lens & Light</title>
   <meta name="description" content="Explore a curated photography gallery with portraits, weddings, and editorial scenes.">
   <script src="../lib/staging/staging.js"></script>
@@ -63,6 +64,9 @@
   </footer>
 
   <script type="module" src="../js/main.js"></script>
-  <script type="module" src="../js/lib/gallery-lightbox.js"></script>
+  <script type="module">
+    import { initGalleryLightboxFromDom } from "../js/web-dev-base/gallery-core.js";
+    initGalleryLightboxFromDom();
+  </script>
 </body>
 </html>

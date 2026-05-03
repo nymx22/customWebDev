@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="icon" href="../assets/images/tomato.png" type="image/png">
   <title>Contact | Calvin Van</title>
   <meta name="description" content="Contact Calvin Van.">
   <script src="../lib/staging/staging.js"></script>
@@ -15,14 +16,18 @@
     <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
     <div class="column-slot column-slot--contact">
       <section class="contact-block" aria-label="Contact">
+        <div class="project-page-header"></div>
         <p class="contact-line"><button type="button" class="contact-email-copy" data-email="calvinvan58@gmail.com" aria-label="Copy email address">calvinvan58@gmail.com</button></p>
-        <p class="contact-line"><a href="https://www.instagram.com/calvinpony/" target="_blank" rel="noopener noreferrer">ins: calvinpony</a></p>
+        <p class="contact-line"><a href="https://www.instagram.com/calvinpony/" target="_blank" rel="noopener noreferrer">calvinpony</a></p>
       </section>
     </div>
     <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
     <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
   </main>
-  <a class="back-link" href="../index.html">back</a>
+  <script type="module">
+    import { mountProjectBackButton, mountProjectPageHeader } from "../js/web-dev-base/project-page.js";
+    mountProjectBackButton();
+  </script>
   <script>
     (function () {
       var btn = document.querySelector(".contact-email-copy");

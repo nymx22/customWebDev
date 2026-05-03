@@ -1,0 +1,11 @@
+frame-layout.js (web-dev-base)
+
+parseRatioCsv(ratioCsv) — comma-separated positive weights → number[]; throws if invalid
+
+buildDividedGridTracks(count, ratioCsv) — count must match segment count; returns grid track string (minmax(0, Nfr) …) for CSS or inline styles
+
+applyGridDividers(el, axis, count, ratioCsv) — axis columns | rows; sets display:grid and template columns or rows on el
+
+mountMainWrapper(options?) — wraps first main in .main-wrapper (mainSelector optional); options.dividers { axis, count, ratioCsv } runs applyGridDividers on the wrapper; returns wrapper or null if skipped
+
+gallery-core.js (same folder) createDraggableGallery imports buildDividedGridTracks for --draggable-gallery-zoom-columns / --draggable-gallery-zoom-rows (default 2 columns, ratio 1,3)

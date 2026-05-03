@@ -1,0 +1,5 @@
+project-page.js (web-dev-base)
+
+mountProjectBackButton(options?) — append fixed .back-link to body if missing; default href ../index.html, label back
+
+mountProjectPageHeader(target, options) — fill .project-page-header: optional photographer line, h1 with title as link (titleHref / homeHref, default ../index.html), optional lead; showHomeLink: false hides the home line; stickyHeader true adds .project-page-header--sticky (needs main.css); stickyHeaderTop optional CSS string for --project-page-header-sticky-top (used as position top)

@@ -1,9 +1,5 @@
-Workflow: layout/grid changes stay in staging only (lib/staging/staging.css). Preview with ?staging=1 — e.g.:
-http://127.0.0.1:5500/?staging=1
-http://127.0.0.1:5500/mobile-view-index.html?staging=1
+Live (default): URL has no `staging=1` (or has `staging=0` / `staging=false`). No `html.staging`, no “Testing mode” label, no link rewriting. Legacy `localStorage` key `customdev_staging` is cleared on every live load.
 
-Visiting ?staging=1 (or #staging=1) also saves to localStorage so staging stays on if Live Server redirects to /index.html and drops the query. Clear with ?staging=0 or remove localStorage key customdev_staging.
+Staging: URL must include **`?staging=1`** (or `#staging=1` in the hash). Then `staging.js` adds `html.staging`, the top-left “Testing mode” label (`staging.css`), and appends `?staging=1` to same-origin HTML links so navigation stays in staging.
 
-All HTML pages load lib/staging/staging.js + staging.css. While staging is on, same-site links get ?staging=1 so navigation keeps staging in the URL.
-
-Promote to live only when you ask: copy the rules you want from staging.css into lib/layout/layout.css (or ask the agent to).
+Column grids for homepage and contact are always in `lib/layout/layout.css` at laptop widths (not gated by staging).
