@@ -1,4 +1,5 @@
-/* Column layout primitives. Multi-column grid is enabled only when html has .staging (see lib/staging/staging.css). */
+/* Column primitives. Homepage multi-column grids use `html.staging` (lib/staging/staging.css). Contact four-column layout is live below. */
+
 .column-layout {
   --columns-laptop: 4;
   min-height: 100vh;
@@ -7,4 +8,38 @@
 
 .column-slot--spacer {
   display: none;
+}
+
+.column-slot--projects,
+.column-slot--name {
+  display: block;
+}
+
+.column-slot--contact {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  text-align: left;
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 36px 28px;
+}
+
+@media (min-width: 1024px) {
+  .column-layout--contact {
+    display: grid;
+    grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));
+    align-items: stretch;
+    min-height: 100vh;
+  }
+
+  .column-layout--contact .column-slot--spacer {
+    display: block;
+    min-height: 100vh;
+  }
+
+  .column-layout--contact .column-slot--contact {
+    min-height: 100vh;
+  }
 }

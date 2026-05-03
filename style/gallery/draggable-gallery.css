@@ -1,0 +1,123 @@
+.draggable-gallery {
+  width: 100%;
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 32vw);
+  gap: 16px;
+  align-items: start;
+}
+
+.draggable-gallery__viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: grab;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  outline: none;
+}
+
+.draggable-gallery__viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.draggable-gallery__viewport:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 4px;
+}
+
+.draggable-gallery__track {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 12px;
+  width: max-content;
+  min-height: min(58vh, 520px);
+  padding: 0 2px 14px;
+}
+
+.draggable-gallery__slide {
+  margin: 0;
+  flex: 0 0 auto;
+  height: min(58vh, 520px);
+  border: 1px solid transparent;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: zoom-in;
+  padding: 0;
+  appearance: none;
+}
+
+.draggable-gallery__slide img {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.draggable-gallery__slide.is-active {
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.draggable-gallery__zoom {
+  position: sticky;
+  top: 22px;
+  margin: 0;
+  min-height: min(58vh, 520px);
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-18px) scale(0.985);
+  transition: opacity 220ms ease, transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.draggable-gallery__zoom.is-visible {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.draggable-gallery__zoom.is-entering {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.draggable-gallery__zoom-image {
+  width: 100%;
+  height: min(58vh, 520px);
+  object-fit: contain;
+  display: block;
+  opacity: 0.94;
+  transform: scale(0.995);
+  transition: opacity 220ms ease, transform 280ms ease;
+}
+
+.draggable-gallery__zoom.is-visible .draggable-gallery__zoom-image {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draggable-gallery__zoom,
+  .draggable-gallery__zoom-image {
+    transition: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .draggable-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .draggable-gallery__zoom {
+    position: static;
+  }
+}

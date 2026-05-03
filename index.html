@@ -11,20 +11,27 @@
   <link rel="stylesheet" href="lib/staging/staging.css">
 </head>
 <body>
-  <!-- Multi-column grid: lib/layout; enable with ?staging=1 or localStorage customdev_staging=1 -->
-  <main class="portfolio column-layout" style="--columns-laptop: 4">
+  <!-- Column slots: grid layout with ?staging=1 or saved customdev_staging (see lib/staging/staging.js). Live = stacked projects then name. -->
+  <main class="portfolio column-layout column-layout--rows-2" style="--columns-laptop: 4">
+    <!-- row 1 -->
     <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
-    <div class="column-slot column-slot--main">
+    <div class="column-slot column-slot--projects">
       <section class="projects">
-        <p class="photographer">calvin van</p>
         <div class="project-list">
           <p class="project">A Missing Tile</p>
           <p class="project">Hokkaido Case</p>
           <p class="project">Silver Hair Song</p>
           <p class="project">Delicious</p>
-          <p class="project">Farewell, Mr. Fuji</p>
+          <p class="project"><a class="project-link" href="pages/farewell-mr-fuji.html">Farewell, Mr. Fuji</a></p>
         </div>
       </section>
+    </div>
+    <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
+    <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
+    <!-- row 2 -->
+    <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
+    <div class="column-slot column-slot--name">
+      <p class="photographer">calvin van</p>
     </div>
     <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
     <div class="column-slot column-slot--spacer" aria-hidden="true"></div>
