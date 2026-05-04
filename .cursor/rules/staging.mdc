@@ -1,0 +1,10 @@
+---
+description: Prefer updating lib/staging when behavior should differ or be verified in staging mode
+alwaysApply: true
+---
+
+# Staging workflow (customdev)
+
+- When a change affects **live vs staging** behavior (labels, link rewriting, staging-only UI), update **`lib/staging/`**: `staging.js`, `staging.css`, and **`staging.txt`** (URLs and behavior notes).
+- Verify with a URL that enables staging: **`?staging=1`** or **`#staging=1`** on the same origin (see `staging.txt` for the documented staging URL).
+- Do not rely on legacy `localStorage` staging keys; staging is URL-driven only (`staging.js` clears `customdev_staging` on non-staging loads).

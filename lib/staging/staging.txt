@@ -2,4 +2,9 @@ Live (default): URL has no `staging=1` (or has `staging=0` / `staging=false`). N
 
 Staging: URL must include **`?staging=1`** (or `#staging=1` in the hash). Then `staging.js` adds `html.staging`, the top-left “Testing mode” label (`staging.css`), and appends `?staging=1` to same-origin HTML links so navigation stays in staging.
 
+Staging URLs (GitHub Pages for this repo): **`https://nymx22.github.io/customWebDev/?staging=1`** — append `?staging=1` to any path on that origin (e.g. `…/pages/farewell-mr-fuji.html?staging=1`). For local previews, use the same query on `http://127.0.0.1:<port>/…`.
+
 Column grids for homepage and contact are always in `lib/layout/layout.css` at laptop widths (not gated by staging).
+
+Valid URL shape: **`scheme` + `host` + `/` + path** — not `http://pages/…` (that treats `pages` as the hostname). Examples: `http://127.0.0.1:5500/pages/farewell-mr-fuji.html?staging=1` (local server) or `https://nymx22.github.io/customWebDev/pages/farewell-mr-fuji.html?staging=1` (GitHub Pages).
+

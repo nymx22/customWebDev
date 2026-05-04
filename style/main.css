@@ -149,6 +149,59 @@ body {
   z-index: 4;
   margin: 0 0 12px;
   padding: 10px 0 12px;
+  min-height: var(--project-page-header-sticky-height, auto);
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.project-page-footer {
+  margin: 16px 0 0;
+}
+
+.projects.project-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.projects.project-page .project-drag-gallery {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.project-page-footer-text {
+  margin: 0;
+  font-size: clamp(0.85rem, 1.6vw, 1rem);
+  font-weight: 400;
+  opacity: 0.72;
+}
+
+.project-page-footer-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.project-page-footer .back-link,
+.project-page-footer .contact-link {
+  position: static;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
+  text-shadow: none;
+}
+
+.project-page-footer.project-page-footer--sticky {
+  position: sticky;
+  bottom: var(--project-page-footer-sticky-bottom, 0);
+  z-index: 4;
+  margin-top: auto;
+  padding: 10px 0 12px;
+  min-height: var(--project-page-footer-sticky-height, auto);
   background: rgba(0, 0, 0, 0.88);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -262,6 +315,22 @@ body {
   right: max(20px, env(safe-area-inset-right, 0px));
 }
 
+footer.site-footer .contact-link {
+  position: static;
+  bottom: auto;
+  right: auto;
+  left: auto;
+  z-index: auto;
+  text-shadow: none;
+}
+
+.page-home footer.site-footer {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 1100;
+}
+
 .back-link:hover,
 .contact-link:hover {
   opacity: 1;
@@ -343,6 +412,10 @@ body {
   }
 
   body.page-farewell-mr-fuji .project-page-header {
+    flex-shrink: 0;
+  }
+
+  body.page-farewell-mr-fuji .project-page-footer {
     flex-shrink: 0;
   }
 
