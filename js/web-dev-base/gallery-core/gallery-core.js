@@ -16,12 +16,15 @@ export const STAGING_GALLERY_SCROLL_STORAGE_KEY = "customdev_staging_gallery_scr
 /** `window` event name: a gallery saved staging prefs (`detail.galleryStorageId`). */
 export const STAGING_GALLERY_SETTINGS_EVENT = "customdev-staging-gallery-settings";
 
+/** `window` event (no detail): each staging gallery with a testing panel flushes UI into `sessionStorage` before `lib/staging/staging.js` copies prefs to `localStorage` for live. */
+export const STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT = "customdev-staging-gallery-sync-session-prefs";
+
 /** Per-gallery JSON prefs in sessionStorage (staging only; nav, strip thumbnail gesture actions, scroll, zoomOpenAnim, slideTransition). */
 export function stagingGalleryPrefsStorageKey(galleryStorageId) {
   return `customdev_staging_gallery_prefs_${galleryStorageId}`;
 }
 
-/** Per-gallery JSON prefs in localStorage — written from staging **Save & publish to live**; read on live (`!html.staging`) and as seed when staging has no session prefs yet. */
+/** Per-gallery JSON prefs in localStorage — written from **`staging.js`** “Publish galleries to live”; read on live (`!html.staging`) and as seed when staging has no session prefs yet. */
 export function publishedGalleryPrefsStorageKey(galleryStorageId) {
   return `customdev_gallery_prefs_published_${galleryStorageId}`;
 }
@@ -486,7 +489,8 @@ export function initGalleryLightboxFromDom() {
  *   stagingGalleryToolbar?: boolean,
  *   zoomOpenAnim?: "none" | "slide" | "fade" | "scale",
  *   slideTransition?: "none" | "crossfade" | "bookflip",
- * }} [options] – `zoomOpenDividers` defaults to two columns `1,3` (thumb rail ∶ zoom pane). `zoomThumbFill` true = fixed-height thumbs cropped with `object-fit: cover`; default = full rail width, whole image, variable thumb height. `zoomPaneMaxHeight` = CSS length for max height of both rail and zoom when open (e.g. `"min(85dvh, calc(100dvh - 8rem))"`); caps pane to wrapper/viewport; left scrolls, right does not. `stripImageSizes` / `zoomImageSizes` override defaults for responsive `sizes` on strip and zoom pane (see `DEFAULT_STRIP_IMAGE_SIZES`, `DEFAULT_ZOOM_IMAGE_SIZES`). `stripHalfClickNav` (default true): half-screen prev/next on the strip and zoom halves when enabled. `zoomOpenAnim` (default `slide`): zoom shell enter/exit — `none` instant, `slide` / `fade` / `scale` CSS variants. `slideTransition` (default `none`): when changing the zoom image while zoom stays open — `crossfade`, `bookflip` (`runBookflipImageSwap`), or `none`. When `html.staging` and `stagingGalleryToolbar` is not false, the testing panel adds nav checkboxes, **three strip-thumbnail menus** (click / double-click / right-click each assign **Open / toggle zoom**, **Select thumbnail only (no zoom)**, or **No action**; at least one gesture must not be “No action”), strip-scroll, zoom open/close, and zoom image change. Prefs persist in `sessionStorage` under `stagingGalleryPrefsStorageKey(id)` (JSON: `stripClickAction`, `stripDblclickAction`, `stripContextmenuAction`, etc.); legacy `openZoom*` booleans, JSON `activate`, and flat keys are read if needed. `window` event `STAGING_GALLERY_SETTINGS_EVENT` carries `detail.galleryStorageId` so only matching instances refresh.
+ *   stripClosedAlign?: "start" | "center" | "end",
+ * }} [options] – `zoomOpenDividers` defaults to two columns `1,3` (thumb rail ∶ zoom pane). `zoomThumbFill` true = fixed-height thumbs cropped with `object-fit: cover`; default = full rail width, whole image, variable thumb height. `zoomPaneMaxHeight` = CSS length for max height of both rail and zoom when open (e.g. `"min(85dvh, calc(100dvh - 8rem))"`); caps pane to wrapper/viewport; left scrolls, right does not. `stripImageSizes` / `zoomImageSizes` override defaults for responsive `sizes` on strip and zoom pane (see `DEFAULT_STRIP_IMAGE_SIZES`, `DEFAULT_ZOOM_IMAGE_SIZES`). `stripHalfClickNav` (default true): half-screen prev/next on the strip and zoom halves when enabled. `zoomOpenAnim` (default `slide`): zoom shell enter/exit — `none` instant, `slide` / `fade` / `scale` CSS variants. `slideTransition` (default `none`): when changing the zoom image while zoom stays open — `crossfade`, `bookflip` (`runBookflipImageSwap`), or `none`. `stripClosedAlign` (default `start`): horizontal alignment of the strip when zoom is closed (`start` | `center` | `end`). When `html.staging` and `stagingGalleryToolbar` is not false, the testing panel adds nav checkboxes, **three strip-thumbnail menus** (click / double-click / right-click each assign **Open / toggle zoom**, **Select thumbnail only (no zoom)**, or **No action**; at least one gesture must not be “No action”), strip-scroll, zoomed-out strip alignment, zoom open/close, and zoom image change. Prefs persist in `sessionStorage` under `stagingGalleryPrefsStorageKey(id)` (JSON: `stripClickAction`, `stripDblclickAction`, `stripContextmenuAction`, `stripClosedAlign`, etc.); legacy `openZoom*` booleans, JSON `activate`, and flat keys are read if needed. **`lib/staging/staging.js`** “Publish galleries to live” dispatches `STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT` so each gallery flushes the panel into session, then copies to `publishedGalleryPrefsStorageKey(id)` in `localStorage`. `window` event `STAGING_GALLERY_SETTINGS_EVENT` carries `detail.galleryStorageId` so only matching instances refresh.
  */
 export function createDraggableGallery(root, options) {
   if (!root) {
@@ -511,6 +515,9 @@ export function createDraggableGallery(root, options) {
       : DEFAULT_ZOOM_IMAGE_SIZES;
   const stripHalfClickNavDefault = opts.stripHalfClickNav !== false;
   let stripHalfClickNavActive = stripHalfClickNavDefault;
+
+  /** Strip: defer single-click when both click and dblclick open zoom. Zoom pane: defer half-nav on main image so double-click can close without two prev/next steps. */
+  const OPEN_ZOOM_CLICK_DEFER_MS = 280;
 
   /**
    * @param {unknown} v
@@ -579,10 +586,18 @@ export function createDraggableGallery(root, options) {
     }
     return "none";
   }
+  function normalizeStripClosedAlign(v) {
+    if (v === "center" || v === "end") {
+      return v;
+    }
+    return "start";
+  }
   /** @type {"none" | "slide" | "fade" | "scale"} */
   let galleryZoomOpenAnim = normalizeZoomOpenAnim(opts.zoomOpenAnim);
   /** @type {"none" | "crossfade" | "bookflip"} */
   let gallerySlideTransition = normalizeSlideTransition(opts.slideTransition);
+  /** @type {"start" | "center" | "end"} — horizontal alignment of the strip when zoom is closed (narrow strip vs viewport). */
+  let galleryStripClosedAlign = normalizeStripClosedAlign(opts.stripClosedAlign);
 
   let galleryPrefsStorageId = "";
   if (root.id && String(root.id).trim()) {
@@ -650,6 +665,7 @@ export function createDraggableGallery(root, options) {
       scroll: /** @type {ScrollBehavior} */ ("smooth"),
       zoomOpenAnim: normalizeZoomOpenAnim(opts.zoomOpenAnim),
       slideTransition: normalizeSlideTransition(opts.slideTransition),
+      stripClosedAlign: normalizeStripClosedAlign(opts.stripClosedAlign),
     };
   }
 
@@ -674,6 +690,9 @@ export function createDraggableGallery(root, options) {
       ),
       slideTransition: normalizeSlideTransition(
         typeof rec.slideTransition === "string" ? rec.slideTransition : undefined,
+      ),
+      stripClosedAlign: normalizeStripClosedAlign(
+        typeof rec.stripClosedAlign === "string" ? rec.stripClosedAlign : fallback.stripClosedAlign,
       ),
     };
   }
@@ -734,6 +753,7 @@ export function createDraggableGallery(root, options) {
         scroll: scr === "instant" || scr === "auto" || scr === "smooth" ? scr : "smooth",
         zoomOpenAnim: fallback.zoomOpenAnim,
         slideTransition: fallback.slideTransition,
+        stripClosedAlign: fallback.stripClosedAlign,
       };
     } catch (_e2) {
       /* ignore */
@@ -767,9 +787,20 @@ export function createDraggableGallery(root, options) {
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     galleryZoomOpenAnim = reduceMotion ? "none" : normalizeZoomOpenAnim(p.zoomOpenAnim);
     gallerySlideTransition = reduceMotion ? "none" : normalizeSlideTransition(p.slideTransition);
+    galleryStripClosedAlign = normalizeStripClosedAlign(p.stripClosedAlign);
     syncZoomOpenAnimClasses();
     syncZoomSpreadBookMode();
     syncHalfClickNavState();
+    syncStripClosedAlignClasses();
+  }
+
+  function syncStripClosedAlignClasses() {
+    root.classList.remove(
+      "draggable-gallery--closed-strip-align-start",
+      "draggable-gallery--closed-strip-align-center",
+      "draggable-gallery--closed-strip-align-end",
+    );
+    root.classList.add(`draggable-gallery--closed-strip-align-${galleryStripClosedAlign}`);
   }
 
   function readGalleryPrefsOverrides() {
@@ -979,11 +1010,6 @@ export function createDraggableGallery(root, options) {
     const body = document.createElement("div");
     body.className = "staging-testing-panel__body";
 
-    const hint = document.createElement("p");
-    hint.className = "staging-testing-panel__hint";
-    hint.textContent =
-      "Options apply to this gallery only. While staging, values stay in session storage until you reload. Save & publish to live copies the current JSON to localStorage for the same gallery id; open the page without staging to use that snapshot. Drag the header to move.";
-
     function addField(fieldId, labelText, selectEl) {
       const wrap = document.createElement("div");
       wrap.className = "staging-testing-panel__field";
@@ -1104,6 +1130,21 @@ export function createDraggableGallery(root, options) {
     scrollSel.appendChild(scInstant);
     scrollSel.appendChild(scAuto);
 
+    const stripClosedAlignSel = document.createElement("select");
+    stripClosedAlignSel.setAttribute("aria-label", "Horizontal alignment of strip when zoom is closed");
+    const alStart = document.createElement("option");
+    alStart.value = "start";
+    alStart.textContent = "Start (left)";
+    const alCenter = document.createElement("option");
+    alCenter.value = "center";
+    alCenter.textContent = "Center";
+    const alEnd = document.createElement("option");
+    alEnd.value = "end";
+    alEnd.textContent = "End (right)";
+    stripClosedAlignSel.appendChild(alStart);
+    stripClosedAlignSel.appendChild(alCenter);
+    stripClosedAlignSel.appendChild(alEnd);
+
     const zoomAnimSel = document.createElement("select");
     zoomAnimSel.setAttribute("aria-label", "Zoom panel open and close animation");
     const zaNone = document.createElement("option");
@@ -1138,12 +1179,12 @@ export function createDraggableGallery(root, options) {
     slideTransSel.appendChild(stXf);
     slideTransSel.appendChild(stBf);
 
-    body.appendChild(hint);
     body.appendChild(navModeWrap);
     addField(`staging-testing-strip-click-${gid}`, "Click on thumbnail", stripClickActSel);
     addField(`staging-testing-strip-dbl-${gid}`, "Double-click on thumbnail", stripDblclickActSel);
     addField(`staging-testing-strip-ctx-${gid}`, "Right-click on thumbnail", stripCtxActSel);
     addField(`staging-testing-scroll-${gid}`, "Strip scroll", scrollSel);
+    addField(`staging-testing-strip-closed-align-${gid}`, "Zoomed-out strip alignment", stripClosedAlignSel);
     addField(`staging-testing-zoom-anim-${gid}`, "Zoom open/close", zoomAnimSel);
     addField(`staging-testing-slide-trans-${gid}`, "Zoom image change", slideTransSel);
 
@@ -1166,6 +1207,7 @@ export function createDraggableGallery(root, options) {
             : "smooth",
         zoomOpenAnim: normalizeZoomOpenAnim(zoomAnimSel.value),
         slideTransition: normalizeSlideTransition(slideTransSel.value),
+        stripClosedAlign: normalizeStripClosedAlign(stripClosedAlignSel.value),
       };
       try {
         sessionStorage.setItem(
@@ -1179,48 +1221,17 @@ export function createDraggableGallery(root, options) {
       dispatchThisGalleryStagingSettings();
     }
 
-    const publishWrap = document.createElement("div");
-    publishWrap.className = "staging-testing-panel__publish-row";
-    const publishBtn = document.createElement("button");
-    publishBtn.type = "button";
-    publishBtn.className = "staging-testing-panel__publish";
-    publishBtn.textContent = "Save & publish to live";
-    const publishFeedback = document.createElement("p");
-    publishFeedback.className = "staging-testing-panel__publish-feedback";
-    publishFeedback.setAttribute("aria-live", "polite");
-    publishWrap.appendChild(publishBtn);
-    publishWrap.appendChild(publishFeedback);
-    body.appendChild(publishWrap);
-
-    function onPublishClick(e) {
-      e.preventDefault();
-      e.stopPropagation();
+    function onSyncSessionPrefsForPublish() {
       persistPrefsFromSelectors();
-      let raw;
-      try {
-        raw = sessionStorage.getItem(stagingGalleryPrefsStorageKey(gid));
-      } catch (_e) {
-        raw = null;
-      }
-      if (!raw) {
-        publishFeedback.textContent = "Nothing saved yet.";
-        return;
-      }
-      try {
-        localStorage.setItem(publishedGalleryPrefsStorageKey(gid), raw);
-        publishFeedback.textContent =
-          "Saved to live. Reload without staging in the URL to use these settings.";
-      } catch (_err) {
-        publishFeedback.textContent = "Could not save (storage full or blocked).";
-      }
     }
-    publishBtn.addEventListener("click", onPublishClick);
+    window.addEventListener(STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT, onSyncSessionPrefsForPublish);
 
     stripClickActSel.addEventListener("change", persistPrefsFromSelectors);
     stripDblclickActSel.addEventListener("change", persistPrefsFromSelectors);
     stripCtxActSel.addEventListener("change", persistPrefsFromSelectors);
 
     scrollSel.addEventListener("change", persistPrefsFromSelectors);
+    stripClosedAlignSel.addEventListener("change", persistPrefsFromSelectors);
     zoomAnimSel.addEventListener("change", persistPrefsFromSelectors);
     slideTransSel.addEventListener("change", persistPrefsFromSelectors);
 
@@ -1231,6 +1242,7 @@ export function createDraggableGallery(root, options) {
       stripDblclickActSel.value = p.stripDblclickAction;
       stripCtxActSel.value = p.stripContextmenuAction;
       scrollSel.value = p.scroll;
+      stripClosedAlignSel.value = p.stripClosedAlign;
       zoomAnimSel.value = p.zoomOpenAnim;
       slideTransSel.value = p.slideTransition;
     };
@@ -1362,9 +1374,10 @@ export function createDraggableGallery(root, options) {
       stripDblclickActSel.removeEventListener("change", persistPrefsFromSelectors);
       stripCtxActSel.removeEventListener("change", persistPrefsFromSelectors);
       scrollSel.removeEventListener("change", persistPrefsFromSelectors);
+      stripClosedAlignSel.removeEventListener("change", persistPrefsFromSelectors);
       zoomAnimSel.removeEventListener("change", persistPrefsFromSelectors);
       slideTransSel.removeEventListener("change", persistPrefsFromSelectors);
-      publishBtn.removeEventListener("click", onPublishClick);
+      window.removeEventListener(STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT, onSyncSessionPrefsForPublish);
       if (panel.parentNode) {
         panel.parentNode.removeChild(panel);
       }
@@ -1472,6 +1485,28 @@ export function createDraggableGallery(root, options) {
   }
   window.addEventListener("resize", onGalleryResize);
 
+  /** Defer half-pane prev/next when the click is on the main zoom image so double-click can close without two navigations. */
+  let zoomMainNavDeferTimer = null;
+  function flushZoomMainNavDeferTimer() {
+    if (zoomMainNavDeferTimer != null) {
+      window.clearTimeout(zoomMainNavDeferTimer);
+      zoomMainNavDeferTimer = null;
+    }
+  }
+
+  /**
+   * @param {EventTarget | null} target
+   */
+  function isMainZoomImageEventTarget(target) {
+    if (!zoomImg || !target || !(target instanceof Node)) {
+      return false;
+    }
+    return (
+      target === zoomImg ||
+      (target instanceof Element && target.closest(".draggable-gallery__zoom-image") === zoomImg)
+    );
+  }
+
   function onZoomPaneClick(event) {
     if (!root.classList.contains("draggable-gallery--zoom-open")) {
       return;
@@ -1481,9 +1516,30 @@ export function createDraggableGallery(root, options) {
       if (rect.width <= 0) {
         return;
       }
-      const mid = rect.left + rect.width * 0.5;
       event.preventDefault();
       event.stopPropagation();
+      if (isMainZoomImageEventTarget(event.target)) {
+        flushZoomMainNavDeferTimer();
+        const cx = event.clientX;
+        zoomMainNavDeferTimer = window.setTimeout(function zoomMainNavDeferred() {
+          zoomMainNavDeferTimer = null;
+          if (!root.classList.contains("draggable-gallery--zoom-open")) {
+            return;
+          }
+          const r2 = zoom.getBoundingClientRect();
+          if (r2.width <= 0) {
+            return;
+          }
+          const mid2 = r2.left + r2.width * 0.5;
+          if (cx < mid2) {
+            goPrev();
+          } else {
+            goNext();
+          }
+        }, OPEN_ZOOM_CLICK_DEFER_MS);
+        return;
+      }
+      const mid = rect.left + rect.width * 0.5;
       if (event.clientX < mid) {
         goPrev();
       } else {
@@ -1494,8 +1550,24 @@ export function createDraggableGallery(root, options) {
     closeZoom();
   }
 
+  function onZoomMainImageDblClick(event) {
+    if (!root.classList.contains("draggable-gallery--zoom-open") || isMobileZoomDisabled()) {
+      return;
+    }
+    if (!isMainZoomImageEventTarget(event.target)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    flushZoomMainNavDeferTimer();
+    closeZoom();
+  }
+
   if (zoom) {
     zoom.addEventListener("click", onZoomPaneClick);
+  }
+  if (zoomImg) {
+    zoomImg.addEventListener("dblclick", onZoomMainImageDblClick);
   }
 
   if (viewport) {
@@ -1603,6 +1675,8 @@ export function createDraggableGallery(root, options) {
       cancelSlideSwapAnim();
       cancelSlideSwapAnim = null;
     }
+
+    flushZoomMainNavDeferTimer();
 
     if (enterTimer) {
       window.clearTimeout(enterTimer);
@@ -1771,8 +1845,6 @@ export function createDraggableGallery(root, options) {
     copyStripImgToBookPart(zoomImg, im, "full");
   }
 
-  /** When both click and double-click open zoom, delay single-click so a double-click does not open twice. */
-  const OPEN_ZOOM_CLICK_DEFER_MS = 280;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let openZoomClickTimer = null;
 
@@ -2077,6 +2149,7 @@ export function createDraggableGallery(root, options) {
 
   function destroy() {
     flushOpenZoomClickTimer();
+    flushZoomMainNavDeferTimer();
     closeZoom({ immediate: true });
     window.removeEventListener("resize", onGalleryResize);
     if (showStagingGalleryToolbar) {
@@ -2099,6 +2172,9 @@ export function createDraggableGallery(root, options) {
     if (zoom) {
       zoom.removeEventListener("click", onZoomPaneClick);
     }
+    if (zoomImg) {
+      zoomImg.removeEventListener("dblclick", onZoomMainImageDblClick);
+    }
     root.style.removeProperty("--draggable-gallery-zoom-columns");
     root.style.removeProperty("--draggable-gallery-zoom-rows");
     root.style.removeProperty("--draggable-gallery-zoom-pane-max");
@@ -2113,6 +2189,9 @@ export function createDraggableGallery(root, options) {
       "draggable-gallery--zoom-open-anim-slide",
       "draggable-gallery--zoom-open-anim-fade",
       "draggable-gallery--zoom-open-anim-scale",
+      "draggable-gallery--closed-strip-align-start",
+      "draggable-gallery--closed-strip-align-center",
+      "draggable-gallery--closed-strip-align-end",
     );
     root.replaceChildren();
   }
