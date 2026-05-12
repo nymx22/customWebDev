@@ -4,13 +4,15 @@
 
 import { createDraggableGallery } from "./web-dev-base/gallery-core.js";
 import {
+  forceLandscapeMobile as forceLandscape,
   mountProjectBackButton,
   mountProjectPageFooter,
   mountProjectPageHeader,
 } from "./web-dev-base/project-page.js";
 
 const GALLERY_ROOT_ID = "farewell-drag-gallery";
-const ASSET_BASE = "../assets/images/Farewell, Mr. Fuji/";
+/** Background-removed PNGs under `assets/images/FarewellMrFuji/bg_removed/`. */
+const ASSET_BASE = "../assets/images/FarewellMrFuji/";
 
 /** CSS max-height for thumb rail + zoom when open (caps both columns; rail scrolls, zoom does not). */
 const ZOOM_PANE_MAX_HEIGHT = "min(85dvh, calc(100dvh - 9rem))";
@@ -41,12 +43,11 @@ const STICKY_PROJECT_FOOTER_BOTTOM = "";
 const STICKY_PROJECT_FOOTER_HEIGHT = "";
 
 const SCAN_FILES = [
-  "Farewell, Mr. Fuji Scan 1.jpg",
-  "Farewell, Mr. Fuji Scan 2.jpg",
-  "Farewell, Mr. Fuji Scan 3.jpg",
-  "Farewell, Mr. Fuji Scan 4.jpg",
-  "Farewell, Mr. Fuji Scan 5.jpg",
-  "Farewell, Mr. Fuji Scan 6.jpg",
+  "Farewell, Mr. Fuji Scan.png",
+  ...Array.from(
+    { length: 33 },
+    (_, i) => `Farewell, Mr. Fuji Scan ${i + 1}.png`
+  ),
 ];
 
 function scanUrl(name) {
@@ -54,6 +55,13 @@ function scanUrl(name) {
 }
 
 export function initFarewellMrFuji() {
+  if (
+    document.documentElement.classList.contains("staging") &&
+    window.matchMedia("(max-width: 900px)").matches
+  ) {
+    forceLandscape();
+  }
+
   mountProjectPageHeader(".project-page .project-page-header", {
     title: "Farewell, Mr. Fuji",
     showHomeLink: false,

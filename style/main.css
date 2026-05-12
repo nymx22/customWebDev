@@ -342,6 +342,19 @@ footer.site-footer .contact-link {
   outline-offset: 3px;
 }
 
+/* Farewell, Mr. Fuji: no frame or tint behind PNGs (overrides draggable-gallery.css). */
+body.page-farewell-mr-fuji .draggable-gallery__slide,
+body.page-farewell-mr-fuji .draggable-gallery__slide.is-active {
+  border: none;
+  background: transparent;
+}
+
+body.page-farewell-mr-fuji .draggable-gallery__zoom,
+body.page-farewell-mr-fuji .draggable-gallery--zoom-open .draggable-gallery__zoom {
+  border: none;
+  background: transparent;
+}
+
 @media (max-width: 900px) {
   .projects {
     padding-bottom: 18px;
@@ -451,5 +464,20 @@ footer.site-footer .contact-link {
     height: 100%;
     max-height: 100%;
     box-sizing: border-box;
+  }
+
+  /* Staging + narrow viewports: Farewell hook from forceLandscape() — tighter chrome for landscape phones */
+  html.project-page-force-landscape body.page-farewell-mr-fuji .projects.project-page {
+    padding-top: 10px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+    row-gap: 0;
+  }
+
+  html.project-page-force-landscape body.page-farewell-mr-fuji .project-drag-gallery {
+    margin-top: 6px;
+  }
+
+  html.project-page-force-landscape body.page-farewell-mr-fuji .project-page-header {
+    margin-bottom: 0;
   }
 }

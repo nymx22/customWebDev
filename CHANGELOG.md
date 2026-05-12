@@ -15,6 +15,8 @@ Document notable changes whenever behavior, settings, or user-visible output cha
 
 ### Changed
 
+- [upg] Farewell, Mr. Fuji (`js/farewell-mr-fuji.js`): gallery images load from `assets/images/FarewellMrFuji/bg_removed/` as PNGs (cover `Farewell, Mr. Fuji Scan.png` then scans 1–33); `forceLandscape` now aliases `forceLandscapeMobile` from `js/web-dev-base/project-page.js` to match the exported API.
+- [upg] Farewell, Mr. Fuji (`style/main.css`): page-scoped overrides remove draggable gallery borders and the light panel background behind thumbs and the desktop zoom pane so PNGs sit flush on the page background.
 - [upg] Homepage two-row column grid (`column-layout--rows-2`) is always active at laptop widths from `lib/layout/layout.css`; staging shows the “Testing mode” label only when staging is enabled, not on live.
 - [upg] Site typography uses embedded MingLiU-style face `MingLiuCustom` loaded from `mingliu.ttf` via `style/main.css`.
 

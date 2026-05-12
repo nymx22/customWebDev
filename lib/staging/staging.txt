@@ -2,6 +2,8 @@ Live (default): URL has no `staging=1` (or has `staging=0` / `staging=false`). N
 
 Staging: URL must include **`?staging=1`** (or `#staging=1` in the hash). Then `staging.js` adds `html.staging`, the top-left “Testing mode” label (`staging.css`), and appends `?staging=1` to same-origin HTML links so navigation stays in staging.
 
+Farewell, Mr. Fuji (`pages/farewell-mr-fuji.html`): when staging is on **and** the viewport matches the site mobile breakpoint (`max-width: 900px`, same as `main.css`), `farewell-mr-fuji.js` calls `forceLandscape()` so `html` gains `project-page-force-landscape` and mobile CSS can tighten vertical chrome for landscape-style layouts (preview shells or phones).
+
 Staging URLs (GitHub Pages for this repo): **`https://nymx22.github.io/customWebDev/?staging=1`** — append `?staging=1` to any path on that origin (e.g. `…/pages/farewell-mr-fuji.html?staging=1`). For local previews, use the same query on `http://127.0.0.1:<port>/…`.
 
 Column grids for homepage and contact are always in `lib/layout/layout.css` at laptop widths (not gated by staging).

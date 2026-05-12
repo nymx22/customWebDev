@@ -3,6 +3,46 @@
  */
 
 /**
+ * Forces a landscape-style mobile layout and optionally attempts browser orientation lock.
+ * Always applies a CSS class fallback, so layout stays landscape-styled even when lock fails.
+ *
+ * @param {{
+ *   root?: HTMLElement,
+ *   className?: string,
+ *   tryLock?: boolean,
+ * }} [options] – defaults: `root` `document.documentElement`, `className` `project-page-force-landscape`, `tryLock` true
+ * @returns {Promise<{ classApplied: boolean, lockAttempted: boolean, lockSucceeded: boolean }>}
+ */
+export async function forceLandscapeMobile(options) {
+  const o = options || {};
+  const root =
+    o.root instanceof HTMLElement ? o.root : document.documentElement;
+  const className =
+    typeof o.className === "string" && o.className.trim()
+      ? o.className.trim()
+      : "project-page-force-landscape";
+  const tryLock = o.tryLock !== false;
+
+  root.classList.add(className);
+
+  let lockAttempted = false;
+  let lockSucceeded = false;
+
+  const orientation = screen.orientation;
+  if (tryLock && orientation && typeof orientation.lock === "function") {
+    lockAttempted = true;
+    try {
+      await orientation.lock("landscape");
+      lockSucceeded = true;
+    } catch (_error) {
+      // Ignore lock failures; class-based landscape styling is the reliable fallback.
+    }
+  }
+
+  return { classApplied: true, lockAttempted, lockSucceeded };
+}
+
+/**
  * @param {{ href?: string, label?: string, showContact?: boolean, contactHref?: string, contactLabel?: string, footerTarget?: HTMLElement | string | null }} [options]
  * – Defaults: `href` `../index.html`, `label` `back`, `showContact` false, `contactHref` `contact.html`, `contactLabel` `contact`.
  *   If a project footer exists (or `footerTarget` resolves), renders footer nav links inside that footer.

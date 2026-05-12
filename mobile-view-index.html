@@ -49,6 +49,14 @@
       width: 320px;
       height: 568px;
     }
+    .phone.landscape {
+      width: 667px;
+      height: 375px;
+    }
+    .phone.landscape.small {
+      width: 568px;
+      height: 320px;
+    }
     iframe {
       width: 100%;
       height: 100%;
@@ -67,6 +75,7 @@
   <div class="controls">
     <button id="reload">Reload</button>
     <button id="toggle">Toggle 375x667 / 320x568</button>
+    <button id="rotate">Landscape / portrait</button>
   </div>
 
   <div class="phone" id="phone">
@@ -78,9 +87,27 @@
   <script>
     const phone = document.getElementById("phone");
     const preview = document.getElementById("preview");
+
+    /**
+     * Fit the preview chrome to landscape aspect (short side × long side swapped).
+     * Works with `.small`; call forcePortrait() to restore default portrait chrome.
+     */
+    function forceLandscape() {
+      phone.classList.add("landscape");
+    }
+
+    function forcePortrait() {
+      phone.classList.remove("landscape");
+    }
+
+    function toggleLandscape() {
+      phone.classList.toggle("landscape");
+    }
+
     document.getElementById("toggle").addEventListener("click", () => {
       phone.classList.toggle("small");
     });
+    document.getElementById("rotate").addEventListener("click", toggleLandscape);
     document.getElementById("reload").addEventListener("click", () => {
       preview.src = preview.src;
     });
