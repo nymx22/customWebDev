@@ -1,5 +1,6 @@
 /**
- * Reusable project header + back link (expects matching CSS class names in your stylesheet).
+ * Reusable project header + back link (expects matching class names in your stylesheet).
+ * Site-wide “Live” / staging chrome comes from `lib/staging/staging.js`, not this module — use `<html data-official-live="true">` on production pages to hide it.
  */
 
 /**

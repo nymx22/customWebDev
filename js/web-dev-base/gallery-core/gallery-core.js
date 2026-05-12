@@ -3,6 +3,15 @@
  */
 
 import { buildDividedGridTracks } from "./frame-layout.js";
+import {
+  applyGalleryLayoutClasses,
+  applyLayoutStyleTokens,
+  clearGalleryLayoutClasses,
+  galleryKeyFromRoot,
+  mapGalleryRowToInitialOptions,
+  pageNameFromPathname,
+  resolveLayoutApiBaseForGallery,
+} from "../gallery-layout-from-db.js";
 
 /** Session key when `html.staging`: values `half-click` | `zoom-close` for draggable gallery nav mode. */
 export const STAGING_GALLERY_NAV_STORAGE_KEY = "customdev_staging_gallery_nav";
@@ -37,7 +46,8 @@ export function stagingGalleryPanelPosStorageKey(galleryStorageId) {
 function isHtmlStagingEnabled() {
   return (
     typeof document !== "undefined" &&
-    document.documentElement.classList.contains("staging")
+    document.documentElement.classList.contains("staging") &&
+    !document.documentElement.classList.contains("official-live")
   );
 }
 
@@ -487,24 +497,30 @@ export function initGalleryLightboxFromDom() {
  *   zoomImageSizes?: string,
  *   stripHalfClickNav?: boolean,
  *   stagingGalleryToolbar?: boolean,
+ *   layoutApiBase?: string | null,
+ *   pageName?: string,
+ *   galleryKey?: string,
+ *   galleryKey?: string,
  *   zoomOpenAnim?: "none" | "slide" | "fade" | "scale",
  *   slideTransition?: "none" | "crossfade" | "bookflip",
  *   stripClosedAlign?: "start" | "center" | "end",
- * }} [options] – `zoomOpenDividers` defaults to two columns `1,3` (thumb rail ∶ zoom pane). `zoomThumbFill` true = fixed-height thumbs cropped with `object-fit: cover`; default = full rail width, whole image, variable thumb height. `zoomPaneMaxHeight` = CSS length for max height of both rail and zoom when open (e.g. `"min(85dvh, calc(100dvh - 8rem))"`); caps pane to wrapper/viewport; left scrolls, right does not. `stripImageSizes` / `zoomImageSizes` override defaults for responsive `sizes` on strip and zoom pane (see `DEFAULT_STRIP_IMAGE_SIZES`, `DEFAULT_ZOOM_IMAGE_SIZES`). `stripHalfClickNav` (default true): half-screen prev/next on the strip and zoom halves when enabled. `zoomOpenAnim` (default `slide`): zoom shell enter/exit — `none` instant, `slide` / `fade` / `scale` CSS variants. `slideTransition` (default `none`): when changing the zoom image while zoom stays open — `crossfade`, `bookflip` (`runBookflipImageSwap`), or `none`. `stripClosedAlign` (default `start`): horizontal alignment of the strip when zoom is closed (`start` | `center` | `end`). When `html.staging` and `stagingGalleryToolbar` is not false, the testing panel adds nav checkboxes, **three strip-thumbnail menus** (click / double-click / right-click each assign **Open / toggle zoom**, **Select thumbnail only (no zoom)**, or **No action**; at least one gesture must not be “No action”), strip-scroll, zoomed-out strip alignment, zoom open/close, and zoom image change. Prefs persist in `sessionStorage` under `stagingGalleryPrefsStorageKey(id)` (JSON: `stripClickAction`, `stripDblclickAction`, `stripContextmenuAction`, `stripClosedAlign`, etc.); legacy `openZoom*` booleans, JSON `activate`, and flat keys are read if needed. **`lib/staging/staging.js`** “Publish galleries to live” dispatches `STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT` so each gallery flushes the panel into session, then copies to `publishedGalleryPrefsStorageKey(id)` in `localStorage`. `window` event `STAGING_GALLERY_SETTINGS_EVENT` carries `detail.galleryStorageId` so only matching instances refresh.
+ * }} [options] – `zoomOpenDividers` defaults to two columns `1,3` (thumb rail ∶ zoom pane). `zoomThumbFill` true = fixed-height thumbs cropped with `object-fit: cover`; default = full rail width, whole image, variable thumb height. `zoomPaneMaxHeight` = CSS length for max height of both rail and zoom when open (e.g. `"min(85dvh, calc(100dvh - 8rem))"`); caps pane to wrapper/viewport; left scrolls, right does not. `stripImageSizes` / `zoomImageSizes` override defaults for responsive `sizes` on strip and zoom pane (see `DEFAULT_STRIP_IMAGE_SIZES`, `DEFAULT_ZOOM_IMAGE_SIZES`). `stripHalfClickNav` (default true): half-screen prev/next on the strip and zoom halves when enabled. `zoomOpenAnim` (default `slide`): zoom shell enter/exit — `none` instant, `slide` / `fade` / `scale` CSS variants. `slideTransition` (default `none`): when changing the zoom image while zoom stays open — `crossfade`, `bookflip` (`runBookflipImageSwap`), or `none`. `stripClosedAlign` (default `start`): horizontal alignment of the strip when zoom is closed (`start` | `center` | `end`). When `html.staging` and `stagingGalleryToolbar` is not false, the testing panel adds nav checkboxes, **three strip-thumbnail menus** (click / double-click / right-click each assign **Open / toggle zoom**, **Select thumbnail only (no zoom)**, or **No action**; at least one gesture must not be “No action”), strip-scroll, zoomed-out strip alignment, zoom open/close, and zoom image change. Prefs persist in `sessionStorage` under `stagingGalleryPrefsStorageKey(id)` (JSON: `stripClickAction`, `stripDblclickAction`, `stripContextmenuAction`, `stripClosedAlign`, etc.); legacy `openZoom*` booleans, JSON `activate`, and flat keys are read if needed. **`lib/staging/staging.js`** “Publish galleries to live” dispatches `STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT` so each gallery flushes the panel into session, then copies to `publishedGalleryPrefsStorageKey(id)` in `localStorage`. `window` event `STAGING_GALLERY_SETTINGS_EVENT` carries `detail.galleryStorageId` so only matching instances refresh. With **`layoutApiBase`** (default in staging from `window.__CUSTOMDEV_LAYOUT_API__` or `<meta name="customdev-layout-api" content="…">`, else `http://127.0.0.1:8787`), layout is loaded from **`GET /api/layout`** before the gallery DOM is built; the panel gains a **Layout (SQLite)** section that PATCHes the API, while **Interaction** keeps session/publish prefs (when a DB gallery row exists, **zoom image change** / `slideTransition` is driven by DB `zoomStyle` only).
  */
-export function createDraggableGallery(root, options) {
+export async function createDraggableGallery(root, options) {
   if (!root) {
     throw new Error("createDraggableGallery: root element required");
   }
 
   const opts = options || {};
   const defaultCursor = opts.defaultCursor === true;
-  const zoomThumbFill = opts.zoomThumbFill === true;
+  let zoomThumbFill = opts.zoomThumbFill === true;
   const zoomPaneMaxHeight =
     typeof opts.zoomPaneMaxHeight === "string" && opts.zoomPaneMaxHeight.trim()
       ? opts.zoomPaneMaxHeight.trim()
       : null;
-  const zoomDiv = opts.zoomOpenDividers || { count: 2, ratioCsv: "1,3" };
+  let zoomDiv = opts.zoomOpenDividers
+    ? { ...opts.zoomOpenDividers }
+    : { count: 2, ratioCsv: "1,3" };
   const stripImageSizes =
     typeof opts.stripImageSizes === "string" && opts.stripImageSizes.trim()
       ? opts.stripImageSizes.trim()
@@ -599,6 +615,13 @@ export function createDraggableGallery(root, options) {
   /** @type {"start" | "center" | "end"} — horizontal alignment of the strip when zoom is closed (narrow strip vs viewport). */
   let galleryStripClosedAlign = normalizeStripClosedAlign(opts.stripClosedAlign);
 
+  /** When true, `slideTransition` comes from SQLite layout (`zoomStyle`), not session prefs. */
+  let gallerySlideTransitionLockedByLayoutApi = false;
+  /** @type {{ page?: Record<string, unknown>, gallery?: Record<string, unknown>, font?: Record<string, unknown> } | null} */
+  let layoutDbPayload = null;
+  /** @type {{ thumbnail: number, zoom: number }} */
+  let layoutDbStripZoomFlags = { thumbnail: 1, zoom: 1 };
+
   let galleryPrefsStorageId = "";
   if (root.id && String(root.id).trim()) {
     galleryPrefsStorageId = String(root.id).trim();
@@ -612,7 +635,18 @@ export function createDraggableGallery(root, options) {
   const showStagingGalleryToolbar =
     opts.stagingGalleryToolbar !== false && isHtmlStagingEnabled();
 
-  /** @type {null | (() => void)} */
+  const layoutApiBaseResolved = resolveLayoutApiBaseForGallery(opts);
+  const layoutPageName =
+    typeof opts.pageName === "string" && opts.pageName.trim()
+      ? opts.pageName.trim()
+      : pageNameFromPathname();
+  const layoutGalleryKey =
+    typeof opts.galleryKey === "string" && opts.galleryKey.trim()
+      ? opts.galleryKey.trim()
+      : galleryKeyFromRoot(root);
+
+  /** @type {string | null} */
+  let layoutLayoutFetchError = null;
   let syncStagingPanelSelectsFromState = null;
 
   /** @type {HTMLElement | null} */
@@ -786,7 +820,11 @@ export function createDraggableGallery(root, options) {
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     galleryZoomOpenAnim = reduceMotion ? "none" : normalizeZoomOpenAnim(p.zoomOpenAnim);
-    gallerySlideTransition = reduceMotion ? "none" : normalizeSlideTransition(p.slideTransition);
+    if (reduceMotion) {
+      gallerySlideTransition = "none";
+    } else if (!gallerySlideTransitionLockedByLayoutApi) {
+      gallerySlideTransition = normalizeSlideTransition(p.slideTransition);
+    }
     galleryStripClosedAlign = normalizeStripClosedAlign(p.stripClosedAlign);
     syncZoomOpenAnimClasses();
     syncZoomSpreadBookMode();
@@ -807,6 +845,38 @@ export function createDraggableGallery(root, options) {
     applyLoadedGalleryPrefs(loadGalleryStagingPrefsObject());
     if (showStagingGalleryToolbar && typeof syncStagingPanelSelectsFromState === "function") {
       syncStagingPanelSelectsFromState();
+    }
+  }
+
+  if (layoutApiBaseResolved) {
+    try {
+      const lr = await fetch(
+        `${layoutApiBaseResolved}/api/layout?page=${encodeURIComponent(layoutPageName)}&galleryKey=${encodeURIComponent(layoutGalleryKey)}`,
+        { mode: "cors" },
+      );
+      if (!lr.ok) {
+        layoutLayoutFetchError = `HTTP ${lr.status}`;
+        layoutDbPayload = null;
+      } else {
+        layoutDbPayload = await lr.json();
+        const g = layoutDbPayload && layoutDbPayload.gallery;
+        if (g && typeof g === "object") {
+          const mapped = mapGalleryRowToInitialOptions(/** @type {Record<string, unknown>} */ (g));
+          zoomThumbFill = mapped.zoomThumbFill;
+          zoomDiv = { ...mapped.zoomOpenDividers };
+          gallerySlideTransition = normalizeSlideTransition(mapped.slideTransition);
+          gallerySlideTransitionLockedByLayoutApi = true;
+          layoutDbStripZoomFlags = {
+            thumbnail: mapped.layoutThumbnail,
+            zoom: mapped.layoutZoom,
+          };
+          applyGalleryLayoutClasses(root, layoutDbStripZoomFlags);
+          applyLayoutStyleTokens(root, g.galleryStyle, g.thumbnailStyle);
+        }
+      }
+    } catch (_e) {
+      layoutLayoutFetchError = "unreachable";
+      layoutDbPayload = null;
     }
   }
 
@@ -1164,20 +1234,301 @@ export function createDraggableGallery(root, options) {
     zoomAnimSel.appendChild(zaFade);
     zoomAnimSel.appendChild(zaScale);
 
-    const slideTransSel = document.createElement("select");
-    slideTransSel.setAttribute("aria-label", "Animation when changing zoom image");
-    const stNone = document.createElement("option");
-    stNone.value = "none";
-    stNone.textContent = "None (instant)";
-    const stXf = document.createElement("option");
-    stXf.value = "crossfade";
-    stXf.textContent = "Crossfade";
-    const stBf = document.createElement("option");
-    stBf.value = "bookflip";
-    stBf.textContent = "Book flip";
-    slideTransSel.appendChild(stNone);
-    slideTransSel.appendChild(stXf);
-    slideTransSel.appendChild(stBf);
+    /** @type {HTMLSelectElement | null} */
+    let slideTransSel = null;
+    if (!gallerySlideTransitionLockedByLayoutApi) {
+      slideTransSel = document.createElement("select");
+      slideTransSel.setAttribute("aria-label", "Animation when changing zoom image");
+      const stNone = document.createElement("option");
+      stNone.value = "none";
+      stNone.textContent = "None (instant)";
+      const stXf = document.createElement("option");
+      stXf.value = "crossfade";
+      stXf.textContent = "Crossfade";
+      const stBf = document.createElement("option");
+      stBf.value = "bookflip";
+      stBf.textContent = "Book flip";
+      slideTransSel.appendChild(stNone);
+      slideTransSel.appendChild(stXf);
+      slideTransSel.appendChild(stBf);
+    }
+
+    /** @type {number | null} */
+    let layoutGalleryPatchTimer = null;
+    /** @type {number | null} */
+    let layoutFontPatchTimer = null;
+
+    function slideTransitionToZoomStyle(st) {
+      if (st === "bookflip") {
+        return "bookflip";
+      }
+      if (st === "crossfade") {
+        return "crossfade";
+      }
+      return "";
+    }
+
+    function applyRuntimeFromLayoutGalleryRow(g) {
+      if (!g || typeof g !== "object") {
+        return;
+      }
+      const mapped = mapGalleryRowToInitialOptions(/** @type {Record<string, unknown>} */ (g));
+      zoomThumbFill = mapped.zoomThumbFill;
+      zoomDiv = { ...mapped.zoomOpenDividers };
+      gallerySlideTransition = normalizeSlideTransition(mapped.slideTransition);
+      layoutDbStripZoomFlags = {
+        thumbnail: mapped.layoutThumbnail,
+        zoom: mapped.layoutZoom,
+      };
+      root.classList.toggle("draggable-gallery--zoom-thumbs-fill", zoomThumbFill);
+      applyGalleryLayoutClasses(root, layoutDbStripZoomFlags);
+      applyLayoutStyleTokens(root, g.galleryStyle, g.thumbnailStyle);
+      applyZoomOpenGridVars();
+      syncZoomSpreadBookMode();
+    }
+
+    function schedulePatchGalleryLayout(patch) {
+      const row = layoutDbPayload && layoutDbPayload.gallery;
+      if (!layoutApiBaseResolved || !row || typeof row.id !== "number") {
+        return;
+      }
+      if (layoutGalleryPatchTimer != null) {
+        window.clearTimeout(layoutGalleryPatchTimer);
+      }
+      layoutGalleryPatchTimer = window.setTimeout(() => {
+        layoutGalleryPatchTimer = null;
+        const bodyPatch = { id: row.id, ...patch };
+        fetch(`${layoutApiBaseResolved}/api/gallery`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyPatch),
+          mode: "cors",
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data && data.gallery) {
+              layoutDbPayload.gallery = data.gallery;
+              applyRuntimeFromLayoutGalleryRow(data.gallery);
+            }
+          })
+          .catch(() => {
+            /* ignore */
+          });
+      }, 400);
+    }
+
+    function schedulePatchFont(patch) {
+      const pageRow = layoutDbPayload && layoutDbPayload.page;
+      if (!layoutApiBaseResolved || !pageRow || typeof pageRow.id !== "number") {
+        return;
+      }
+      if (layoutFontPatchTimer != null) {
+        window.clearTimeout(layoutFontPatchTimer);
+      }
+      layoutFontPatchTimer = window.setTimeout(() => {
+        layoutFontPatchTimer = null;
+        fetch(`${layoutApiBaseResolved}/api/font`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pageId: pageRow.id, ...patch }),
+          mode: "cors",
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data && data.font) {
+              layoutDbPayload.font = data.font;
+            }
+          })
+          .catch(() => {
+            /* ignore */
+          });
+      }, 400);
+    }
+
+    if (layoutApiBaseResolved) {
+      const layoutFs = document.createElement("fieldset");
+      layoutFs.className = "staging-testing-panel__fieldset";
+      const layoutLeg = document.createElement("legend");
+      layoutLeg.className = "staging-testing-panel__fieldset-legend";
+      layoutLeg.textContent = "Layout (SQLite)";
+      layoutFs.appendChild(layoutLeg);
+
+      function addLayoutField(fieldId, labelText, inputEl) {
+        const wrap = document.createElement("div");
+        wrap.className = "staging-testing-panel__field";
+        const lab = document.createElement("label");
+        lab.className = "staging-testing-panel__field-label";
+        lab.setAttribute("for", fieldId);
+        lab.textContent = labelText;
+        inputEl.id = fieldId;
+        wrap.appendChild(lab);
+        wrap.appendChild(inputEl);
+        layoutFs.appendChild(wrap);
+      }
+
+      const layoutNote = document.createElement("p");
+      layoutNote.className = "staging-testing-panel__layout-note";
+      if (layoutLayoutFetchError) {
+        layoutNote.textContent = `Layout API unreachable (${layoutLayoutFetchError}). Run npm run dev:api — ${layoutApiBaseResolved}`;
+      } else if (!layoutDbPayload || !layoutDbPayload.gallery) {
+        layoutNote.textContent = `No gallery row for page “${layoutPageName}” / key “${layoutGalleryKey}”. Add one under Pages / galleries.`;
+      } else {
+        layoutNote.textContent = `Page “${layoutPageName}”, gallery key “${layoutGalleryKey}”. Edits PATCH the local API.`;
+      }
+      layoutFs.appendChild(layoutNote);
+
+      const gRow = layoutDbPayload && layoutDbPayload.gallery;
+      if (gRow && typeof gRow === "object") {
+        const layoutCbThumb = document.createElement("input");
+        layoutCbThumb.type = "checkbox";
+        layoutCbThumb.checked = Number(gRow.thumbnail) === 1;
+        const labT = document.createElement("label");
+        labT.className = "staging-testing-panel__check-row";
+        labT.appendChild(layoutCbThumb);
+        labT.appendChild(document.createTextNode(" Thumbnail strip"));
+        layoutFs.appendChild(labT);
+
+        const layoutCbZoom = document.createElement("input");
+        layoutCbZoom.type = "checkbox";
+        layoutCbZoom.checked = Number(gRow.zoom) === 1;
+        const labZ = document.createElement("label");
+        labZ.className = "staging-testing-panel__check-row";
+        labZ.appendChild(layoutCbZoom);
+        labZ.appendChild(document.createTextNode(" Zoom pane"));
+        layoutFs.appendChild(labZ);
+
+        const layoutZoomStyleSel = document.createElement("select");
+        layoutZoomStyleSel.setAttribute("aria-label", "Zoom image change (stored as zoom_style)");
+        for (const opt of [
+          { v: "none", t: "Zoom image change: none" },
+          { v: "crossfade", t: "Crossfade" },
+          { v: "bookflip", t: "Book flip" },
+        ]) {
+          const o = document.createElement("option");
+          o.value = opt.v;
+          o.textContent = opt.t;
+          layoutZoomStyleSel.appendChild(o);
+        }
+        const zst = String(gRow.zoomStyle ?? "").toLowerCase();
+        layoutZoomStyleSel.value =
+          zst === "bookflip" || zst === "book" ? "bookflip" : zst === "crossfade" ? "crossfade" : "none";
+        addLayoutField(`staging-layout-zoom-style-${gid}`, "Zoom image change (DB)", layoutZoomStyleSel);
+
+        const layoutColInput = document.createElement("input");
+        layoutColInput.type = "number";
+        layoutColInput.min = "2";
+        layoutColInput.max = "8";
+        layoutColInput.value = String(gRow.columnCount ?? 2);
+        layoutColInput.className = "staging-testing-panel__input-num";
+        addLayoutField(`staging-layout-cols-${gid}`, "Column count", layoutColInput);
+
+        const layoutRowInput = document.createElement("input");
+        layoutRowInput.type = "number";
+        layoutRowInput.min = "1";
+        layoutRowInput.max = "12";
+        layoutRowInput.value = String(gRow.rowCount ?? 1);
+        layoutRowInput.className = "staging-testing-panel__input-num";
+        addLayoutField(`staging-layout-rows-${gid}`, "Row count", layoutRowInput);
+
+        const layoutGalStyle = document.createElement("input");
+        layoutGalStyle.type = "text";
+        layoutGalStyle.value = String(gRow.galleryStyle ?? "");
+        layoutGalStyle.autocomplete = "off";
+        addLayoutField(`staging-layout-gal-style-${gid}`, "Gallery style token", layoutGalStyle);
+
+        const layoutThumbStyle = document.createElement("input");
+        layoutThumbStyle.type = "text";
+        layoutThumbStyle.value = String(gRow.thumbnailStyle ?? "");
+        layoutThumbStyle.placeholder = "fill or cover → thumb fill";
+        layoutThumbStyle.autocomplete = "off";
+        addLayoutField(`staging-layout-thumb-style-${gid}`, "Thumbnail style token", layoutThumbStyle);
+
+        const pageRow = layoutDbPayload.page;
+        const fontRow = layoutDbPayload.font;
+        if (pageRow && typeof pageRow === "object") {
+          const layoutFontSize = document.createElement("input");
+          layoutFontSize.type = "number";
+          layoutFontSize.min = "8";
+          layoutFontSize.max = "96";
+          layoutFontSize.value = String(
+            fontRow && typeof fontRow.fontSize === "number" ? fontRow.fontSize : 16,
+          );
+          layoutFontSize.className = "staging-testing-panel__input-num";
+          addLayoutField(`staging-layout-font-size-${gid}`, "Font size (page)", layoutFontSize);
+
+          const layoutFontFam = document.createElement("input");
+          layoutFontFam.type = "text";
+          layoutFontFam.value = String(
+            fontRow && typeof fontRow.fontFamily === "string"
+              ? fontRow.fontFamily
+              : "system-ui, sans-serif",
+          );
+          layoutFontFam.autocomplete = "off";
+          addLayoutField(`staging-layout-font-fam-${gid}`, "Font family (page)", layoutFontFam);
+
+          function onLayoutFontChange() {
+            const fs = parseInt(layoutFontSize.value, 10) || 16;
+            const ff = layoutFontFam.value.trim() || "system-ui, sans-serif";
+            schedulePatchFont({ fontSize: fs, fontFamily: ff });
+          }
+          layoutFontSize.addEventListener("change", onLayoutFontChange);
+          layoutFontFam.addEventListener("change", onLayoutFontChange);
+        }
+
+        function onLayoutGalleryChange() {
+          const row = layoutDbPayload && layoutDbPayload.gallery;
+          if (!row || typeof row !== "object") {
+            return;
+          }
+          const thumbOn = layoutCbThumb.checked ? 1 : 0;
+          const zoomOn = layoutCbZoom.checked ? 1 : 0;
+          const st = normalizeSlideTransition(layoutZoomStyleSel.value);
+          gallerySlideTransition = st;
+          const cols = Math.max(2, Math.min(8, parseInt(layoutColInput.value, 10) || 2));
+          const rows = Math.max(1, Math.min(12, parseInt(layoutRowInput.value, 10) || 1));
+          layoutColInput.value = String(cols);
+          layoutRowInput.value = String(rows);
+          const merged = {
+            ...row,
+            thumbnail: thumbOn,
+            zoom: zoomOn,
+            zoomStyle: slideTransitionToZoomStyle(st),
+            columnCount: cols,
+            rowCount: rows,
+            galleryStyle: layoutGalStyle.value.trim(),
+            thumbnailStyle: layoutThumbStyle.value.trim(),
+          };
+          applyRuntimeFromLayoutGalleryRow(merged);
+          schedulePatchGalleryLayout({
+            thumbnail: thumbOn,
+            zoom: zoomOn,
+            zoomStyle: slideTransitionToZoomStyle(st),
+            columnCount: cols,
+            rowCount: rows,
+            galleryStyle: layoutGalStyle.value.trim(),
+            thumbnailStyle: layoutThumbStyle.value.trim(),
+          });
+          persistPrefsFromSelectors();
+          dispatchThisGalleryStagingSettings();
+        }
+
+        layoutCbThumb.addEventListener("change", onLayoutGalleryChange);
+        layoutCbZoom.addEventListener("change", onLayoutGalleryChange);
+        layoutZoomStyleSel.addEventListener("change", onLayoutGalleryChange);
+        layoutColInput.addEventListener("change", onLayoutGalleryChange);
+        layoutRowInput.addEventListener("change", onLayoutGalleryChange);
+        layoutGalStyle.addEventListener("change", onLayoutGalleryChange);
+        layoutThumbStyle.addEventListener("change", onLayoutGalleryChange);
+      }
+
+      body.appendChild(layoutFs);
+    }
+
+    const interactionLeg = document.createElement("div");
+    interactionLeg.className = "staging-testing-panel__fieldset-legend";
+    interactionLeg.setAttribute("role", "presentation");
+    interactionLeg.textContent = "Interaction";
+    body.appendChild(interactionLeg);
 
     body.appendChild(navModeWrap);
     addField(`staging-testing-strip-click-${gid}`, "Click on thumbnail", stripClickActSel);
@@ -1186,7 +1537,9 @@ export function createDraggableGallery(root, options) {
     addField(`staging-testing-scroll-${gid}`, "Strip scroll", scrollSel);
     addField(`staging-testing-strip-closed-align-${gid}`, "Zoomed-out strip alignment", stripClosedAlignSel);
     addField(`staging-testing-zoom-anim-${gid}`, "Zoom open/close", zoomAnimSel);
-    addField(`staging-testing-slide-trans-${gid}`, "Zoom image change", slideTransSel);
+    if (slideTransSel) {
+      addField(`staging-testing-slide-trans-${gid}`, "Zoom image change", slideTransSel);
+    }
 
     function persistPrefsFromSelectors() {
       let sca = normalizeStripGestureAction(stripClickActSel.value);
@@ -1206,7 +1559,9 @@ export function createDraggableGallery(root, options) {
             ? scrollSel.value
             : "smooth",
         zoomOpenAnim: normalizeZoomOpenAnim(zoomAnimSel.value),
-        slideTransition: normalizeSlideTransition(slideTransSel.value),
+        slideTransition: gallerySlideTransitionLockedByLayoutApi
+          ? gallerySlideTransition
+          : normalizeSlideTransition(slideTransSel ? slideTransSel.value : "none"),
         stripClosedAlign: normalizeStripClosedAlign(stripClosedAlignSel.value),
       };
       try {
@@ -1233,7 +1588,9 @@ export function createDraggableGallery(root, options) {
     scrollSel.addEventListener("change", persistPrefsFromSelectors);
     stripClosedAlignSel.addEventListener("change", persistPrefsFromSelectors);
     zoomAnimSel.addEventListener("change", persistPrefsFromSelectors);
-    slideTransSel.addEventListener("change", persistPrefsFromSelectors);
+    if (slideTransSel) {
+      slideTransSel.addEventListener("change", persistPrefsFromSelectors);
+    }
 
     syncStagingPanelSelectsFromState = function syncStagingPanelSelectsFromStateFn() {
       const p = loadGalleryStagingPrefsObject();
@@ -1244,7 +1601,9 @@ export function createDraggableGallery(root, options) {
       scrollSel.value = p.scroll;
       stripClosedAlignSel.value = p.stripClosedAlign;
       zoomAnimSel.value = p.zoomOpenAnim;
-      slideTransSel.value = p.slideTransition;
+      if (slideTransSel) {
+        slideTransSel.value = p.slideTransition;
+      }
     };
     syncStagingPanelSelectsFromState();
 
@@ -1363,6 +1722,14 @@ export function createDraggableGallery(root, options) {
     header.addEventListener("mousedown", onHeaderMouseDown);
 
     stagingTestingPanelTeardown = function stagingTestingPanelTeardownFn() {
+      if (layoutGalleryPatchTimer != null) {
+        window.clearTimeout(layoutGalleryPatchTimer);
+        layoutGalleryPatchTimer = null;
+      }
+      if (layoutFontPatchTimer != null) {
+        window.clearTimeout(layoutFontPatchTimer);
+        layoutFontPatchTimer = null;
+      }
       header.removeEventListener("mousedown", onHeaderMouseDown);
       window.removeEventListener("mousemove", onDragMove);
       window.removeEventListener("mouseup", onDragUp);
@@ -1376,7 +1743,9 @@ export function createDraggableGallery(root, options) {
       scrollSel.removeEventListener("change", persistPrefsFromSelectors);
       stripClosedAlignSel.removeEventListener("change", persistPrefsFromSelectors);
       zoomAnimSel.removeEventListener("change", persistPrefsFromSelectors);
-      slideTransSel.removeEventListener("change", persistPrefsFromSelectors);
+      if (slideTransSel) {
+        slideTransSel.removeEventListener("change", persistPrefsFromSelectors);
+      }
       window.removeEventListener(STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT, onSyncSessionPrefsForPublish);
       if (panel.parentNode) {
         panel.parentNode.removeChild(panel);
@@ -2193,6 +2562,7 @@ export function createDraggableGallery(root, options) {
       "draggable-gallery--closed-strip-align-center",
       "draggable-gallery--closed-strip-align-end",
     );
+    clearGalleryLayoutClasses(root);
     root.replaceChildren();
   }
 

@@ -991,6 +991,19 @@
   }
 }
 
+/* SQLite layout API: optional hide strip / zoom from DB thumbnail & zoom flags */
+.draggable-gallery.draggable-gallery--layout-no-strip .draggable-gallery__track {
+  display: none !important;
+}
+
+.draggable-gallery.draggable-gallery--layout-no-zoom .draggable-gallery__zoom {
+  display: none !important;
+}
+
+.draggable-gallery.draggable-gallery--layout-no-zoom.draggable-gallery--zoom-open {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* Mobile: zoom pane disabled (strip only); see js/web-dev-base/gallery-core/gallery-core.js matchMedia */
 @media (max-width: 900px) {
   .draggable-gallery__zoom {

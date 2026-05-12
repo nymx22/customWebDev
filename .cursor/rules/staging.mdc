@@ -8,3 +8,5 @@ alwaysApply: true
 - When a change affects **live vs staging** behavior (labels, link rewriting, staging-only UI), update **`lib/staging/`**: `staging.js`, `staging.css`, and **`staging.txt`** (URLs and behavior notes).
 - Verify with a URL that enables staging: **`?staging=1`** or **`#staging=1`** on the same origin (see `staging.txt` for the documented staging URL).
 - Do not rely on legacy `localStorage` staging keys; staging is URL-driven only (`staging.js` clears `customdev_staging` on non-staging loads).
+- Layout (pages / galleries / per-gallery layout fields) is **`lib/db/customdev.db`** via the local API (`npm run dev:api`); verify layout editing with the API running and staging in the URL.
+- **Official live** (`<html data-official-live="true">` / `"1"` or meta `customdev-official-live`): no staging or staging.js UI; `?staging=1` ignored; `html` gains `official-live` (gallery layout API + testing panel stay off).

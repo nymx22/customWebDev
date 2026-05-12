@@ -1,0 +1,7 @@
+{
+  "name": "customdev",
+  "private": true,
+  "scripts": {
+    "dev:api": "python3 server/dev_api.py"
+  }
+}

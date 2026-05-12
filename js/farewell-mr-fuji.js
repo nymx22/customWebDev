@@ -54,7 +54,7 @@ function scanUrl(name) {
   return ASSET_BASE + encodeURIComponent(name);
 }
 
-export function initFarewellMrFuji() {
+export async function initFarewellMrFuji() {
   if (
     document.documentElement.classList.contains("staging") &&
     window.matchMedia("(max-width: 900px)").matches
@@ -90,7 +90,7 @@ export function initFarewellMrFuji() {
     return { gallery: null };
   }
 
-  const gallery = createDraggableGallery(root, {
+  const gallery = await createDraggableGallery(root, {
     defaultCursor: true,
     zoomPaneMaxHeight: ZOOM_PANE_MAX_HEIGHT,
   });
@@ -99,4 +99,4 @@ export function initFarewellMrFuji() {
   return { gallery };
 }
 
-initFarewellMrFuji();
+void initFarewellMrFuji();

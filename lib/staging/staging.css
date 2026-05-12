@@ -1,4 +1,5 @@
 /* Shown only when html.staging is set by lib/staging/staging.js (?staging=1 in URL). Live loads this file but never gets html.staging, so no badge. */
+/* Official deploy (`data-official-live="true"` or `1` on <html>): no staging.js UI — see lib/staging/staging.js */
 
 html.staging .staging-status-bar {
   position: fixed;
@@ -9,6 +10,7 @@ html.staging .staging-status-bar {
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
+  gap: 0 8px;
   max-width: 100%;
   pointer-events: none;
 }
@@ -18,7 +20,7 @@ html.staging .staging-status-bar > * {
 }
 
 .staging .staging-mode-label,
-html:not(.staging) .staging-enter-button {
+html:not(.staging):not(.official-live) .staging-enter-button {
   margin: 0;
   padding: 6px 10px;
   font-size: 11px;
@@ -32,14 +34,8 @@ html:not(.staging) .staging-enter-button {
   -webkit-tap-highlight-color: transparent;
 }
 
-html:not(.staging) .staging-enter-button {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1000;
-}
-
 .staging .staging-mode-label {
+  flex: 0 0 auto;
   color: rgba(255, 255, 255, 0.75);
   background: rgba(180, 80, 255, 0.2);
   border: none;
@@ -58,7 +54,11 @@ html:not(.staging) .staging-enter-button {
 }
 
 /* Live: same corner as staging badge; label shows current mode (“Live”). */
-html:not(.staging) .staging-enter-button {
+html:not(.staging):not(.official-live) .staging-enter-button {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.88);
   background: rgba(40, 40, 48, 0.92);
@@ -68,13 +68,13 @@ html:not(.staging) .staging-enter-button {
   box-shadow: none;
 }
 
-html:not(.staging) .staging-enter-button:hover {
+html:not(.staging):not(.official-live) .staging-enter-button:hover {
   color: rgba(255, 255, 255, 0.98);
   border-color: rgba(180, 80, 255, 0.45);
   background: rgba(55, 45, 70, 0.95);
 }
 
-html:not(.staging) .staging-enter-button:focus-visible {
+html:not(.staging):not(.official-live) .staging-enter-button:focus-visible {
   outline: 2px solid rgba(180, 80, 255, 0.65);
   outline-offset: 2px;
 }
@@ -209,25 +209,27 @@ html.staging .staging-testing-panel__body {
   gap: 12px;
 }
 
-/* Site-level “Publish galleries to live” to the right of the Staging badge (`lib/staging/staging.js`). */
+/* Site-level “Publish galleries to live” on the same row as Staging + Pages / galleries. */
 html.staging .staging-gallery-publish {
   position: static;
   box-sizing: border-box;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: min(14rem, calc(100vw - 120px));
+  max-width: none;
   margin: 0;
   padding: 4px 10px 4px 10px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
-  align-items: stretch;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: flex-start;
+  align-items: center;
   font-family: system-ui, sans-serif;
   border-left: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 html.staging .staging-gallery-publish__btn {
+  flex: 0 0 auto;
   margin: 0;
   padding: 5px 8px;
   font-size: 10px;
@@ -254,10 +256,14 @@ html.staging .staging-gallery-publish__btn:focus-visible {
 
 html.staging .staging-gallery-publish__feedback {
   margin: 0;
-  font-size: 10px;
-  line-height: 1.3;
+  font-size: 9px;
+  line-height: 1.25;
   color: rgba(255, 255, 255, 0.72);
-  min-height: 2.6em;
+  min-height: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(220px, 38vw);
 }
 
 html.staging .staging-testing-panel__field {
@@ -323,4 +329,241 @@ html.staging .staging-testing-panel__check-row input {
   flex-shrink: 0;
   accent-color: rgba(180, 80, 255, 0.85);
   cursor: pointer;
+}
+
+/* Pages / galleries registry (staging-only; `lib/staging/staging.js`). */
+html.staging .staging-structure-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  margin: 0;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: system-ui, sans-serif;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(60, 90, 140, 0.45);
+  border: 1px solid rgba(120, 160, 220, 0.5);
+  border-radius: 3px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+html.staging .staging-structure-toggle:hover {
+  background: rgba(60, 90, 140, 0.62);
+}
+
+html.staging .staging-structure-toggle:focus-visible {
+  outline: 2px solid rgba(160, 190, 255, 0.85);
+  outline-offset: 2px;
+}
+
+html.staging .staging-site-structure-panel {
+  position: fixed;
+  top: 2.75rem;
+  left: 8px;
+  z-index: 1002;
+  box-sizing: border-box;
+  width: min(26rem, calc(100vw - 16px));
+  max-height: min(78dvh, 640px);
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(18, 18, 22, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+html.staging .staging-site-structure-panel[hidden] {
+  display: none !important;
+}
+
+html.staging .staging-site-structure-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: default;
+  user-select: none;
+}
+
+html.staging .staging-site-structure-panel__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+html.staging .staging-site-structure-panel__close {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.75);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+html.staging .staging-site-structure-panel__status {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 200, 120, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 2.2em;
+}
+
+html.staging .staging-site-structure-panel__export {
+  margin: 8px 12px 0;
+  align-self: flex-start;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+html.staging .staging-site-structure-panel__section {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-y: auto;
+  flex: 0 1 auto;
+  max-height: 40%;
+}
+
+html.staging .staging-site-structure-panel__section:last-of-type {
+  flex: 1 1 auto;
+  max-height: none;
+  border-bottom: none;
+}
+
+html.staging .staging-site-structure-panel__h {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+html.staging .staging-site-structure-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+html.staging .staging-site-structure-panel__label {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.52);
+}
+
+html.staging .staging-site-structure-panel__input,
+html.staging .staging-site-structure-panel__select {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  color: inherit;
+  background: rgba(24, 24, 24, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+html.staging .staging-site-structure-panel__input--num {
+  max-width: 6rem;
+}
+
+html.staging .staging-site-structure-panel__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+}
+
+html.staging .staging-site-structure-panel__check input {
+  width: 14px;
+  height: 14px;
+  accent-color: rgba(180, 80, 255, 0.85);
+  cursor: pointer;
+}
+
+html.staging .staging-site-structure-panel__primary {
+  margin-top: 4px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(100, 80, 180, 0.45);
+  border: 1px solid rgba(160, 130, 230, 0.55);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+html.staging .staging-site-structure-panel__primary:hover {
+  background: rgba(100, 80, 180, 0.6);
+}
+
+html.staging .staging-site-structure-panel__list {
+  margin: 0;
+  padding: 0 0 0 1rem;
+  list-style: disc;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+html.staging .staging-site-structure-panel__li {
+  margin-bottom: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+html.staging .staging-site-structure-panel__del {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: inherit;
+  color: rgba(255, 180, 180, 0.95);
+  background: rgba(120, 40, 40, 0.35);
+  border: 1px solid rgba(220, 100, 100, 0.45);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+html.staging .staging-testing-panel__layout-note {
+  margin: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 220, 0.88);
+  font-family: system-ui, sans-serif;
+}
+
+html.staging .staging-testing-panel__input-num {
+  width: 100%;
+  max-width: 5rem;
 }
