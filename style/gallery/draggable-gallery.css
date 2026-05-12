@@ -24,6 +24,7 @@
 }
 
 .draggable-gallery__viewport {
+  position: relative;
   flex: 1 1 100%;
   min-width: 0;
   max-width: 100%;
@@ -39,6 +40,52 @@
   transition:
     flex 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
     max-width 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.draggable-gallery__viewport-edge-nav {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  display: none;
+}
+
+.draggable-gallery--half-click-nav:not(.draggable-gallery--zoom-open) .draggable-gallery__viewport-edge-nav {
+  display: block;
+}
+
+.draggable-gallery__edge-prev,
+.draggable-gallery__edge-next {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: min(30%, 140px);
+  min-width: 48px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  touch-action: pan-x;
+  appearance: none;
+  pointer-events: auto;
+}
+
+.draggable-gallery__edge-prev {
+  left: 0;
+}
+
+.draggable-gallery__edge-next {
+  right: 0;
+}
+
+.draggable-gallery--default-cursor.draggable-gallery--half-click-nav:not(.draggable-gallery--zoom-open)
+  .draggable-gallery__edge-prev,
+.draggable-gallery--default-cursor.draggable-gallery--half-click-nav:not(.draggable-gallery--zoom-open)
+  .draggable-gallery__edge-next {
+  cursor: default;
 }
 
 .draggable-gallery__viewport::-webkit-scrollbar {
@@ -126,12 +173,22 @@
   transition: height 320ms cubic-bezier(0.2, 0.8, 0.2, 1), width 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Full-width strip (zoom closed): first slide image flush left in its cell */
+.draggable-gallery:not(.draggable-gallery--zoom-open) .draggable-gallery__slide:first-child img {
+  object-position: left center;
+}
+
 .draggable-gallery--zoom-open .draggable-gallery__slide img {
   width: 100%;
   height: auto;
   max-width: 100%;
   max-height: none;
   object-fit: contain;
+}
+
+/* Zoom-open rail: first thumbnail flush left (letterboxing / cover crop) */
+.draggable-gallery--zoom-open .draggable-gallery__slide:first-child img {
+  object-position: left center;
 }
 
 /* Optional: fixed-height rail cells, image fills bar (crops) — createDraggableGallery({ zoomThumbFill: true }) */
@@ -195,6 +252,655 @@
   cursor: pointer;
   overflow-x: hidden;
   overflow-y: hidden;
+  perspective: 1400px;
+}
+
+/* First slide active: large preview and spread sit at the start of the zoom column (non-book uses object-position) */
+.draggable-gallery--zoom-open:has(.draggable-gallery__slide:first-child.is-active) .draggable-gallery__zoom {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.draggable-gallery--zoom-open:has(.draggable-gallery__slide:first-child.is-active)
+  .draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book)
+  .draggable-gallery__zoom-image {
+  object-position: left center;
+}
+
+/* Exit-in-progress: shell not yet torn down — ignore clicks until close finishes */
+.draggable-gallery--zoom-open .draggable-gallery__zoom:not(.is-visible) {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* Open-book spread: left page static; right column = next page under + right “leaf” that turns on the spine */
+.draggable-gallery__zoom-spread {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  max-height: var(--draggable-gallery-zoom-pane-max, min(58vh, 520px));
+  min-height: 0;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+}
+
+.draggable-gallery__zoom-spread--book {
+  display: block;
+  position: relative;
+  width: 100%;
+  min-height: var(--draggable-gallery-zoom-pane-max, min(58vh, 520px));
+  max-height: var(--draggable-gallery-zoom-pane-max, min(58vh, 520px));
+  /* Flip + under-layer fade duration; set from JS (`GALLERY_BOOKFLIP_MS`) for one source of truth */
+  --draggable-gallery-bookflip-dur: 0.72s;
+  /* Under opacity: fade in from the start of the flip through completion (delay 0 + dur = one flip). */
+  --draggable-gallery-bookflip-under-fade-delay-frac: 0;
+  --draggable-gallery-bookflip-under-fade-dur-frac: 1;
+}
+
+.draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book) .draggable-gallery__zoom-book-left,
+.draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book) .draggable-gallery__zoom-book-under,
+.draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book) .draggable-gallery__zoom-book-under-prev {
+  display: none;
+}
+
+/* Next / prev incoming halves: `zoom-book-under` in `.zoom-book-right`; `zoom-book-under-prev` in
+   `.zoom-book-left`. Opacity ramps with `bookflip-running` (see spread vars). Static stacks crossfade
+   the non-flipping half (left on “next”, right on “prev”). */
+.draggable-gallery__zoom-book-under {
+  z-index: 0;
+  min-height: 0;
+  min-width: 0;
+  pointer-events: none;
+}
+
+/* Next page: lives inside `.zoom-book-right` (same 3D stack as the right leaf) so mid-flip opacity
+   can depth-sort with the turning face; clipped to the column like the flipper front. */
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-under {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateZ(-1px);
+  transform-style: preserve-3d;
+  /* No transition to idle — avoids a post-flip opacity ease fighting the reset spread */
+  transition: none;
+}
+
+/* Prev incoming page: first child of `.zoom-book-left` (under static + left flipper). */
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-under-prev {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateZ(-1px);
+  transform-style: preserve-3d;
+  transition: none;
+}
+
+.draggable-gallery__zoom--bookflip-running:not(.draggable-gallery__zoom--bookflip-dir-prev)
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-under {
+  opacity: 1;
+  transition: opacity
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-dur-frac, 0.6)
+      )
+      cubic-bezier(0.33, 0, 0.2, 1)
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-delay-frac, 0.4)
+      );
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-under-prev {
+  opacity: 1;
+  transition: opacity
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-dur-frac, 0.6)
+      )
+      cubic-bezier(0.33, 0, 0.2, 1)
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-delay-frac, 0.4)
+      );
+}
+
+/* Left column below right so 3D + `perspective` on `.draggable-gallery__zoom` does not paint the
+   full-bleed left stack over the right leaf during “next”. Prev temporarily raises left — see below. */
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-left {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  transform-style: preserve-3d;
+  clip-path: inset(0 50% 0 0);
+  -webkit-clip-path: inset(0 50% 0 0);
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-right {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  z-index: 2;
+  transform-style: preserve-3d;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-left-static {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-flipper--left {
+  transform-origin: right center;
+  z-index: 2;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-right-static {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left {
+  z-index: 4;
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left-static {
+  visibility: hidden;
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--left {
+  visibility: visible;
+  pointer-events: none;
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-right-static {
+  visibility: visible;
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--right {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.draggable-gallery__zoom-book-left {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.draggable-gallery__zoom-book-right {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book) {
+  min-height: var(--draggable-gallery-zoom-pane-max, min(58vh, 520px));
+}
+
+.draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book) .draggable-gallery__zoom-book-right {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  min-height: inherit;
+  align-self: stretch;
+  position: relative;
+  display: block;
+}
+
+.draggable-gallery__zoom-book-flipper {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+}
+
+.draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book) .draggable-gallery__zoom-book-flipper--right {
+  transform-style: flat;
+  transform: none;
+  z-index: 1;
+}
+
+.draggable-gallery__zoom-book-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+}
+
+.draggable-gallery__zoom-book-face--back {
+  transform: rotateY(180deg);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), rgba(255, 255, 255, 0.05));
+}
+
+.draggable-gallery__zoom-spread:not(.draggable-gallery__zoom-spread--book) .draggable-gallery__zoom-book-face--back {
+  display: none;
+}
+
+.draggable-gallery__zoom-book-paper-back {
+  width: 100%;
+  height: 100%;
+  border-radius: 1px;
+  box-shadow: inset -8px 0 18px rgba(0, 0, 0, 0.28);
+}
+
+.draggable-gallery__zoom-book-crop {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.draggable-gallery__zoom-book-img {
+  display: block;
+  flex-shrink: 0;
+}
+
+.draggable-gallery__zoom-book-img--crop-left {
+  width: auto;
+  height: auto;
+  max-height: 100%;
+  min-width: 200%;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.draggable-gallery__zoom-book-img--crop-right {
+  width: auto;
+  height: auto;
+  max-height: 100%;
+  min-width: 200%;
+  object-fit: contain;
+  object-position: right center;
+  transform: translateX(-50%);
+}
+
+.draggable-gallery__zoom-book-img--crop-full {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  min-width: 0;
+  object-fit: contain;
+  object-position: center center;
+  transform: none;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-face--front {
+  overflow: hidden;
+  filter: none;
+}
+
+/* Depth only while turning — at rest no drop-shadow “layer” above the spread */
+.draggable-gallery__zoom--bookflip-running .draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-face--front {
+  filter: drop-shadow(-4px 3px 8px rgba(0, 0, 0, 0.28));
+}
+
+/*
+ * Book mode: one “registration” — the same object-fit: contain box as a single full zoom image,
+ * centered in the spread; left column and right leaf only *clip* that view (no independent half scaling).
+ */
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-left-static-stack,
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-right-static-stack {
+  position: absolute;
+  inset: 0;
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left-static-stack
+  .draggable-gallery__zoom-book-crop--left-static-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left-static-stack
+  .draggable-gallery__zoom-book-crop--left-static-incoming {
+  z-index: 1;
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left-static-stack
+  .draggable-gallery__zoom-book-img--left,
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left-static-stack
+  .draggable-gallery__zoom-book-img--left-incoming {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  object-fit: contain;
+  object-position: center center;
+  transition: none;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-img--left-incoming,
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-img--right-static-incoming {
+  opacity: 0;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-img--right-static {
+  opacity: 1;
+  transition: none;
+}
+
+.draggable-gallery__zoom--bookflip-running:not(.draggable-gallery__zoom--bookflip-dir-prev)
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left-static-stack
+  .draggable-gallery__zoom-book-img--left {
+  opacity: 0;
+  transition: opacity
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-dur-frac, 1)
+      )
+      cubic-bezier(0.33, 0, 0.2, 1)
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-delay-frac, 0)
+      );
+}
+
+.draggable-gallery__zoom--bookflip-running:not(.draggable-gallery__zoom--bookflip-dir-prev)
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-left-static-stack
+  .draggable-gallery__zoom-book-img--left-incoming {
+  opacity: 1;
+  transition: opacity
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-dur-frac, 1)
+      )
+      cubic-bezier(0.33, 0, 0.2, 1)
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-delay-frac, 0)
+      );
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-right-static-stack
+  .draggable-gallery__zoom-book-img--right-static {
+  opacity: 0;
+  transition: opacity
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-dur-frac, 1)
+      )
+      cubic-bezier(0.33, 0, 0.2, 1)
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-delay-frac, 0)
+      );
+}
+
+.draggable-gallery__zoom--bookflip-running.draggable-gallery__zoom--bookflip-dir-prev
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-right-static-stack
+  .draggable-gallery__zoom-book-img--right-static-incoming {
+  opacity: 1;
+  transition: opacity
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-dur-frac, 1)
+      )
+      cubic-bezier(0.33, 0, 0.2, 1)
+      calc(
+        var(--draggable-gallery-bookflip-dur, 0.72s) *
+          var(--draggable-gallery-bookflip-under-fade-delay-frac, 0)
+      );
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-under .draggable-gallery__zoom-book-crop {
+  position: absolute;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-under .draggable-gallery__zoom-book-img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  object-fit: contain;
+  object-position: center center;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-under-prev .draggable-gallery__zoom-book-crop {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-under-prev .draggable-gallery__zoom-book-img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  object-fit: contain;
+  object-position: center center;
+}
+
+/* Left leaf (prev): same registration as static left column */
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--left
+  .draggable-gallery__zoom-book-face--front
+  .draggable-gallery__zoom-book-crop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--left
+  .draggable-gallery__zoom-book-face--front
+  .draggable-gallery__zoom-book-img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  object-fit: contain;
+  object-position: center center;
+}
+
+/* Right static (prev): wide crop stack — same registration as animated right leaf */
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-right-static-stack
+  .draggable-gallery__zoom-book-crop--right-static-layer {
+  position: absolute;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-right-static-stack
+  .draggable-gallery__zoom-book-crop--right-static-incoming {
+  z-index: 1;
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-right-static-stack
+  .draggable-gallery__zoom-book-img--right-static,
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-right-static-stack
+  .draggable-gallery__zoom-book-img--right-static-incoming {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  object-fit: contain;
+  object-position: center center;
+  transition: none;
+}
+
+/* Right leaf (next): crop region spans full spread width so the img shares the same center as the left half */
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--right
+  .draggable-gallery__zoom-book-face--front
+  .draggable-gallery__zoom-book-crop {
+  position: absolute;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--right
+  .draggable-gallery__zoom-book-face--front
+  .draggable-gallery__zoom-book-img,
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--right
+  .draggable-gallery__zoom-book-face--front
+  .draggable-gallery__zoom-image {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  object-fit: contain;
+  object-position: center center;
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-flipper--right {
+  transform: translateZ(0.1px);
+}
+
+.draggable-gallery__zoom-spread--book .draggable-gallery__zoom-book-flipper--left {
+  transform: translateZ(0.1px);
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--right.draggable-gallery__zoom-book-flipper--turn-book-next {
+  transition: transform var(--draggable-gallery-bookflip-dur, 0.72s) cubic-bezier(0.38, 0.02, 0.22, 1);
+  transform: translateZ(0.1px) rotateY(-178deg) rotateX(5deg);
+}
+
+.draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--left.draggable-gallery__zoom-book-flipper--turn-book-prev {
+  transition: transform var(--draggable-gallery-bookflip-dur, 0.72s) cubic-bezier(0.38, 0.02, 0.22, 1);
+  transform: translateZ(0.1px) rotateY(178deg) rotateX(-5deg);
+}
+
+.draggable-gallery__zoom--bookflip-running {
+  overflow: visible !important;
+}
+
+/* While turning: hide the decorative “paper” back so the under-layer (next page) reads as the background */
+.draggable-gallery__zoom--bookflip-running .draggable-gallery__zoom-book-face--back {
+  background: transparent;
+}
+
+.draggable-gallery__zoom--bookflip-running .draggable-gallery__zoom-book-paper-back {
+  opacity: 0;
+  box-shadow: none;
+}
+
+.draggable-gallery__zoom-image.draggable-gallery__zoom-image--xfade-out {
+  opacity: 0.04;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.draggable-gallery__zoom-image.draggable-gallery__zoom-image--xfade-in {
+  opacity: 1;
+  transition: opacity 0.26s ease;
+}
+
+/* Zoom shell open/close presets (root `draggable-gallery--zoom-open-anim-*`) */
+.draggable-gallery--zoom-open-anim-none .draggable-gallery__zoom,
+.draggable-gallery--zoom-open-anim-none .draggable-gallery__zoom.is-visible {
+  transition: none !important;
+}
+
+.draggable-gallery--zoom-open-anim-fade .draggable-gallery__zoom {
+  transform: none;
+  opacity: 0;
+  transition: opacity 260ms ease, border-color 200ms ease;
+}
+
+.draggable-gallery--zoom-open-anim-fade .draggable-gallery__zoom.is-visible {
+  transform: none;
+  opacity: 1;
+}
+
+.draggable-gallery--zoom-open-anim-scale .draggable-gallery__zoom {
+  transform: scale(0.92);
+  opacity: 0;
+  transition:
+    opacity 260ms ease,
+    transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 200ms ease;
+}
+
+.draggable-gallery--zoom-open-anim-scale .draggable-gallery__zoom.is-visible {
+  transform: scale(1);
+  opacity: 1;
 }
 
 .draggable-gallery__zoom.is-visible {
@@ -231,6 +937,24 @@
   transform: scale(1);
 }
 
+/* Book front: keep spread-centered registration (don’t let shell `transform: scale(1)` replace translate) */
+.draggable-gallery__zoom.is-visible
+  .draggable-gallery__zoom-spread--book
+  .draggable-gallery__zoom-book-flipper--right
+  .draggable-gallery__zoom-book-face--front
+  .draggable-gallery__zoom-image {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Crossfade must override the rule above (otherwise opacity never leaves 1) */
+.draggable-gallery__zoom.is-visible .draggable-gallery__zoom-image.draggable-gallery__zoom-image--xfade-out {
+  opacity: 0.04;
+}
+
+.draggable-gallery__zoom.is-visible .draggable-gallery__zoom-image.draggable-gallery__zoom-image--xfade-in {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .draggable-gallery,
   .draggable-gallery__viewport,
@@ -238,12 +962,20 @@
   .draggable-gallery__slide,
   .draggable-gallery__slide img,
   .draggable-gallery__zoom,
+  .draggable-gallery__zoom-spread,
+  .draggable-gallery__zoom-book-flipper,
+  .draggable-gallery__zoom-book-under,
+  .draggable-gallery__zoom-book-under-prev,
+  .draggable-gallery__zoom-book-img--left,
+  .draggable-gallery__zoom-book-img--left-incoming,
+  .draggable-gallery__zoom-book-img--right-static,
+  .draggable-gallery__zoom-book-img--right-static-incoming,
   .draggable-gallery__zoom-image {
     transition: none;
   }
 }
 
-/* Mobile: zoom pane disabled (strip only); see gallery-core.js matchMedia */
+/* Mobile: zoom pane disabled (strip only); see js/web-dev-base/gallery-core/gallery-core.js matchMedia */
 @media (max-width: 900px) {
   .draggable-gallery__zoom {
     display: none !important;

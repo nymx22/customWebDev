@@ -1,4 +1,4 @@
-frame-layout.js (web-dev-base)
+frame-layout.js (`js/web-dev-base/gallery-core/`)
 
 parseRatioCsv(ratioCsv) — comma-separated positive weights → number[]; throws if invalid
 

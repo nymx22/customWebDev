@@ -2,7 +2,7 @@
  * Calvin Van site — Farewell, Mr. Fuji project page only. Imports reusable modules from ./web-dev-base/.
  */
 
-import { createDraggableGallery } from "./web-dev-base/gallery-core.js";
+import { createDraggableGallery } from "./web-dev-base/gallery-core/gallery-core.js";
 import {
   forceLandscapeMobile as forceLandscape,
   mountProjectBackButton,

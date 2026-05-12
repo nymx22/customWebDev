@@ -291,7 +291,7 @@ body {
   transform: translateY(0);
 }
 
-/* Above staging “Testing mode” badge (z-index 1000) when html.staging; see lib/staging/staging.js */
+/* Above staging site-status badge (z-index 1000) when html.staging; see lib/staging/staging.js */
 .back-link,
 .contact-link {
   position: fixed;
