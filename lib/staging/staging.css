@@ -1,6 +1,19 @@
 /* Shown only when html.staging is set by lib/staging/staging.js (?staging=1 in URL). Live loads this file but never gets html.staging, so no badge. */
 /* Official deploy (`data-official-live="true"` or `1` on <html>): no staging.js UI — see lib/staging/staging.js */
 
+/* Toolbar height: default until `staging.js` sets `--staging-status-bar-height` from measured #staging-status-bar. */
+html.staging {
+  --staging-status-bar-height: 2.75rem;
+  /* Frame + draggable gallery: label row above in-root content (grid overlay, strip, zoom layers). */
+  --staging-chrome-above-content-z: 20;
+}
+
+/* Push all page content below the fixed staging toolbar (see sync in `staging.js`). */
+html.staging body {
+  padding-top: var(--staging-status-bar-height);
+  box-sizing: border-box;
+}
+
 html.staging .staging-status-bar {
   position: fixed;
   top: 0;
@@ -17,6 +30,26 @@ html.staging .staging-status-bar {
 
 html.staging .staging-status-bar > * {
   pointer-events: auto;
+}
+
+/* Top staging bar actions: subtle until hovered or keyboard-focused */
+html.staging .staging-mode-label,
+html.staging .staging-publish__btn,
+html.staging .staging-gallery-publish__btn,
+html.staging .staging-structure-toggle {
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+html.staging .staging-mode-label:hover,
+html.staging .staging-mode-label:focus-visible,
+html.staging .staging-publish__btn:hover,
+html.staging .staging-publish__btn:focus-visible,
+html.staging .staging-gallery-publish__btn:hover,
+html.staging .staging-gallery-publish__btn:focus-visible,
+html.staging .staging-structure-toggle:hover,
+html.staging .staging-structure-toggle:focus-visible {
+  opacity: 1;
 }
 
 .staging .staging-mode-label,
@@ -79,9 +112,32 @@ html:not(.staging):not(.official-live) .staging-enter-button:focus-visible {
   outline-offset: 2px;
 }
 
-/* Draggable strip gallery: staging dotted frame + per-gallery “Gallery testing” label (see js/web-dev-base/gallery-core/gallery-core.js). */
+html.staging .draggable-gallery__staging-gallery-label--rename-input {
+  margin: 0;
+  padding: 3px 10px 4px;
+  min-width: 12rem;
+  max-width: min(100%, 28rem);
+  box-sizing: border-box;
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(12, 12, 18, 0.92);
+  border: 1px solid rgba(180, 80, 255, 0.75);
+  border-radius: 2px;
+}
+
+html.staging .draggable-gallery__staging-gallery-label--rename-input:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 1px;
+}
+
+/* Draggable strip gallery: staging dotted frame + per-gallery label (see js/web-dev-base/gallery-core/gallery-core.js). */
 html.staging .draggable-gallery.draggable-gallery--staging {
   position: relative;
+  isolation: isolate;
   box-sizing: border-box;
   padding-top: 2rem;
   border: 2px dotted rgba(255, 255, 255, 0.38);
@@ -92,7 +148,7 @@ html.staging .draggable-gallery__staging-label-row {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 8;
+  z-index: var(--staging-chrome-above-content-z, 20);
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -209,7 +265,8 @@ html.staging .staging-testing-panel__body {
   gap: 12px;
 }
 
-/* Site-level “Publish galleries to live” on the same row as Staging + Pages / galleries. */
+/* Site-level **Publish** on the same row as Staging + Pages / galleries. */
+html.staging .staging-publish,
 html.staging .staging-gallery-publish {
   position: static;
   box-sizing: border-box;
@@ -228,6 +285,7 @@ html.staging .staging-gallery-publish {
   border-left: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+html.staging .staging-publish__btn,
 html.staging .staging-gallery-publish__btn {
   flex: 0 0 auto;
   margin: 0;
@@ -245,15 +303,18 @@ html.staging .staging-gallery-publish__btn {
   -webkit-tap-highlight-color: transparent;
 }
 
+html.staging .staging-publish__btn:hover,
 html.staging .staging-gallery-publish__btn:hover {
   background: rgba(100, 160, 90, 0.52);
 }
 
+html.staging .staging-publish__btn:focus-visible,
 html.staging .staging-gallery-publish__btn:focus-visible {
   outline: 2px solid rgba(180, 230, 160, 0.9);
   outline-offset: 2px;
 }
 
+html.staging .staging-publish__feedback,
 html.staging .staging-gallery-publish__feedback {
   margin: 0;
   font-size: 9px;
@@ -363,7 +424,7 @@ html.staging .staging-structure-toggle:focus-visible {
 
 html.staging .staging-site-structure-panel {
   position: fixed;
-  top: 2.75rem;
+  top: var(--staging-status-bar-height, 2.75rem);
   left: 8px;
   z-index: 1002;
   box-sizing: border-box;
@@ -439,12 +500,22 @@ html.staging .staging-site-structure-panel__export {
   cursor: pointer;
 }
 
-html.staging .staging-site-structure-panel__section {
+html.staging .staging-site-structure-panel__section,
+html.staging .staging-site-structure-panel__details {
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   overflow-y: auto;
   flex: 0 1 auto;
   max-height: 40%;
+}
+
+html.staging .staging-site-structure-panel__details > summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 html.staging .staging-site-structure-panel__section:last-of-type {
@@ -537,11 +608,71 @@ html.staging .staging-site-structure-panel__list {
 }
 
 html.staging .staging-site-structure-panel__li {
-  margin-bottom: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  list-style: disc;
+}
+
+html.staging .staging-site-structure-panel__li-view {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+}
+
+html.staging .staging-site-structure-panel__li-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+html.staging .staging-site-structure-panel__li-form {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+html.staging .staging-site-structure-panel__li-form[hidden] {
+  display: none !important;
+}
+
+html.staging .staging-site-structure-panel__li-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+html.staging .staging-site-structure-panel__li-readonly {
+  margin: 0 0 6px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+html.staging .staging-site-structure-panel__li-edit,
+html.staging .staging-site-structure-panel__li-cancel {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(80, 100, 150, 0.4);
+  border: 1px solid rgba(120, 160, 220, 0.45);
+  border-radius: 3px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+html.staging .staging-site-structure-panel__li-cancel {
+  background: rgba(60, 60, 70, 0.5);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 html.staging .staging-site-structure-panel__del {

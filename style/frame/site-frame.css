@@ -1,0 +1,865 @@
+
+/* Site frame: cell mounts (see js/web-dev-base/site-frame.js). */
+
+.site-frame__cell-mount {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Per-cell padding from SQLite overrides page/slot defaults (see frame-cell-padding.js). */
+body.page-home .column-slot--projects .site-frame__cell-mount.site-frame__cell-mount--cell-padding,
+body.page-home .column-slot--name .site-frame__cell-mount.site-frame__cell-mount--cell-padding {
+  padding: unset;
+}
+
+.column-slot:has(> .site-frame__cell-mount.site-frame__cell-mount--cell-padding) {
+  padding: 0;
+}
+
+.site-frame__cell-mount--cell-padding > .projects {
+  padding: 0;
+}
+
+/* Padding on the mount insets this wrap (not the img directly). */
+.site-frame__cell-mount--image {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+}
+
+.site-frame__cell-image-wrap {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.site-frame__cell-image-link {
+  display: flex;
+  flex: 0 0 auto;
+  max-width: 100%;
+  max-height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.site-frame__cell-image {
+  display: block;
+  box-sizing: border-box;
+  object-fit: contain;
+}
+
+.site-frame__cell-text {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.site-frame__cell-text-body {
+  margin: 0;
+  /* Textarea / DB newlines are `\n`; default `white-space` collapses them to spaces. */
+  white-space: pre-line;
+}
+
+.site-frame__cell-text-body a {
+  font-size: inherit;
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.site-frame__cell-text[data-frame-link-style] .site-frame__cell-text-body a {
+  color: var(--frame-link-color, inherit);
+  text-decoration: var(--frame-link-decoration, none);
+  text-underline-offset: 0.12em;
+}
+
+.site-frame__cell-text[data-frame-link-style] .site-frame__cell-text-body a:hover,
+.site-frame__cell-text[data-frame-link-style] .site-frame__cell-text-body a:focus-visible {
+  color: var(--frame-link-hover-color, inherit);
+  text-decoration: var(--frame-link-hover-decoration, none);
+  opacity: var(--frame-link-hover-opacity, 0.92);
+}
+
+/* Legacy / unset: no per-cell link style yet */
+.site-frame__cell-text:not([data-frame-link-style]) .site-frame__cell-text-body a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.site-frame__cell-text-nav {
+  margin: 0.5rem 0 0;
+  font-size: 0.92em;
+}
+
+.site-frame__cell-text-nav a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.site-frame__cell-table-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow: auto;
+}
+
+.site-frame__text-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  color: inherit;
+}
+
+.site-frame__text-table th,
+.site-frame__text-table td {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.site-frame__text-table thead th {
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.site-frame__text-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Staging: dotted frame + label inside the frame (absolute; no padding on root — see staging-gui-settings.js). */
+html.staging .site-frame--staging {
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  border: 2px dotted rgba(255, 255, 255, 0.38);
+}
+
+html.staging .site-frame__staging-label-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--staging-chrome-above-content-z, 20);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2px 6px 4px;
+  pointer-events: auto;
+}
+
+html.staging .site-frame__staging-frame-label {
+  margin: 0;
+  padding: 3px 10px 4px;
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px dotted rgba(180, 80, 255, 0.55);
+  border-radius: 2px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.staging .site-frame__staging-frame-label:hover {
+  background: rgba(180, 80, 255, 0.18);
+}
+
+html.staging .site-frame__staging-frame-label:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+html.staging .site-frame__staging-frame-label--unsaved {
+  border-color: rgba(255, 200, 80, 0.85);
+  box-shadow: 0 0 0 1px rgba(255, 200, 80, 0.25);
+}
+
+/*
+ * Homepage staging: internal column/row guides for the logical SQLite grid.
+ * One ::before (full inset) covers empty tracks; frame root has no top padding, so guides match cells.
+ * `gap` on the frame is not reflected in the guide math (uniform division).
+ */
+@media (min-width: 1024px) {
+  html.staging .site-frame--staging.column-layout--rows-2::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    box-sizing: border-box;
+    --_sf-c: var(--columns-laptop, 4);
+    --_sf-r: var(--site-frame-rows, 2);
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        transparent 0,
+        transparent calc(100% / var(--_sf-c) - 1px),
+        var(--column-grid-border) calc(100% / var(--_sf-c) - 1px),
+        var(--column-grid-border) calc(100% / var(--_sf-c))
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(100% / var(--_sf-r) - 1px),
+        var(--column-grid-border) calc(100% / var(--_sf-r) - 1px),
+        var(--column-grid-border) calc(100% / var(--_sf-r))
+      );
+    background-repeat: no-repeat;
+  }
+
+  html.staging .site-frame--staging.column-layout--rows-2 > .column-slot {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+html.staging .staging-frame-panel {
+  position: fixed;
+  top: var(--staging-status-bar-height, 2.75rem);
+  left: 8px;
+  z-index: 1002;
+  box-sizing: border-box;
+  width: min(28rem, calc(100vw - 16px));
+  max-height: min(78dvh, 640px);
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(18, 18, 22, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+html.staging .staging-frame-panel[hidden] {
+  display: none !important;
+}
+
+html.staging .staging-frame-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  user-select: none;
+  cursor: grab;
+}
+
+html.staging .staging-frame-panel__header:active {
+  cursor: grabbing;
+}
+
+html.staging .staging-frame-panel__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+html.staging .staging-frame-panel__close {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.75);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+html.staging .staging-frame-panel__status {
+  margin: 0;
+  padding: 6px 10px 0;
+  font-size: 10px;
+  color: rgba(255, 200, 120, 0.9);
+  min-height: 1.25em;
+}
+
+html.staging .staging-frame-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+html.staging .staging-frame-panel__hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+html.staging .site-frame__cell-mount--staging-selected {
+  outline: 2px solid rgba(180, 80, 255, 0.75);
+  outline-offset: 2px;
+}
+
+html.staging .staging-frame-panel__strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+html.staging .staging-frame-panel__cell-pick {
+  margin-bottom: 6px;
+}
+
+html.staging .staging-frame-panel__cell-editor-host {
+  margin-bottom: 8px;
+}
+
+html.staging .staging-frame-panel__cell-editor-empty {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+html.staging .staging-frame-panel__cell-list-details {
+  margin-bottom: 8px;
+}
+
+html.staging .staging-frame-panel__cell-list-summary {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(220, 180, 120, 0.95);
+  cursor: pointer;
+}
+
+html.staging .staging-frame-panel__cell-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+html.staging .staging-frame-panel__cell-pick-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 5px 8px;
+  text-align: left;
+  font: inherit;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+html.staging .staging-frame-panel__cell-pick-btn:hover {
+  background: rgba(180, 80, 255, 0.12);
+}
+
+html.staging .staging-frame-panel__cell-pick-btn.is-selected {
+  border-color: rgba(180, 80, 255, 0.55);
+  background: rgba(180, 80, 255, 0.18);
+}
+
+html.staging .staging-frame-panel__cell-pad-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+html.staging .staging-frame-panel__cell-pad-sides {
+  margin-top: 6px;
+}
+
+html.staging .staging-frame-panel__frame-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(200, 160, 90, 0.35);
+  border-radius: 4px;
+  background: rgba(40, 32, 20, 0.35);
+}
+
+html.staging .staging-frame-panel__field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 220, 180, 0.9);
+}
+
+html.staging .staging-frame-panel__field-label--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+html.staging .staging-frame-panel__input {
+  font: inherit;
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(8, 8, 10, 0.95);
+  color: rgba(255, 255, 255, 0.92);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+html.staging .staging-frame-panel__input--num {
+  width: 4rem;
+}
+
+html.staging .staging-frame-panel__textarea--short {
+  min-height: 2.5rem;
+}
+
+html.staging .staging-frame-panel__dim-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+html.staging .staging-frame-panel__gap-pct-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+  margin-bottom: 8px;
+}
+
+html.staging .staging-frame-panel__input--gap-pct {
+  width: 100%;
+  min-width: 0;
+}
+
+html.staging .staging-frame-panel__gap-legacy-hint {
+  margin: 0 0 8px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.site-frame__cell-table-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow: auto;
+}
+
+.site-frame__text-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  color: inherit;
+}
+
+.site-frame__text-table th,
+.site-frame__text-table td {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.site-frame__text-table thead th {
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.site-frame__text-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html.staging .staging-frame-panel__cell-details {
+  margin-bottom: 10px;
+  padding: 4px 8px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+html.staging .staging-frame-panel__cell-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.92);
+  padding: 6px 4px;
+  user-select: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+html.staging .staging-frame-panel__cell-quick-actions {
+  margin: 0 0 6px;
+}
+
+html.staging .staging-frame-panel__cell-summary-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+html.staging .staging-frame-panel__inline-action {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid rgba(140, 200, 255, 0.45);
+  background: rgba(30, 50, 80, 0.75);
+  color: rgba(230, 245, 255, 0.95);
+}
+
+html.staging .staging-frame-panel__inline-action:hover {
+  border-color: rgba(180, 220, 255, 0.65);
+}
+
+html.staging .staging-frame-panel__text-style {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+html.staging .staging-frame-panel__text-style[hidden] {
+  display: none !important;
+}
+
+html.staging .staging-frame-panel__body-blocks-host {
+  margin-bottom: 8px;
+}
+
+html.staging .staging-frame-panel__body-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html.staging .staging-frame-panel__body-block {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+html.staging .staging-frame-panel__body-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+html.staging .staging-frame-panel__body-block-kind {
+  flex: 1 1 auto;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+html.staging .staging-frame-panel__body-block-move,
+html.staging .staging-frame-panel__body-block-remove {
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(40, 40, 40, 0.8);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+html.staging .staging-frame-panel__body-blocks-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+html.staging .staging-frame-panel__textarea--block {
+  min-height: 4.5em;
+}
+
+html.staging .staging-frame-panel__link-style {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+html.staging .staging-frame-panel__link-style-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+html.staging .staging-frame-panel__link-style-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+html.staging .staging-frame-panel__link-style-color {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+html.staging .staging-frame-panel__link-style-picker {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+html.staging .staging-frame-panel__link-style-hex {
+  max-width: 7rem;
+}
+
+html.staging .staging-frame-panel__image-path {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+html.staging .staging-frame-panel__image-path[hidden] {
+  display: none !important;
+}
+
+html.staging .staging-frame-panel__image-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+html.staging .staging-frame-panel__select--image-path {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+html.staging .staging-frame-panel__cell-legend--layout-typography {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+html.staging .staging-frame-panel__figma-typography {
+  display: grid;
+  grid-template-columns: 1fr minmax(3.75rem, 4.25rem);
+  gap: 10px 12px;
+  align-items: end;
+}
+
+html.staging .staging-frame-panel__figma-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+html.staging .staging-frame-panel__figma-caption {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.52);
+}
+
+html.staging .staging-frame-panel__select--figma-font {
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
+}
+
+html.staging .staging-frame-panel__input--figma-custom-font {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+html.staging .staging-frame-panel__input--figma-size {
+  width: 100%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+html.staging .staging-frame-panel__text-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+html.staging .staging-frame-panel__text-actions .staging-frame-panel__mini-action {
+  margin-top: 0;
+}
+
+html.staging .staging-frame-panel__mini-action {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 3px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(40, 40, 48, 0.9);
+  color: inherit;
+}
+
+html.staging .staging-frame-panel__input--narrow {
+  max-width: 5.5rem;
+}
+
+html.staging .staging-frame-panel__cell-summary::-webkit-details-marker {
+  display: none;
+}
+
+html.staging .staging-frame-panel__cell-details[open] > .staging-frame-panel__cell-summary {
+  color: rgba(255, 210, 150, 0.98);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 6px;
+}
+
+html.staging .staging-frame-panel__table-preview {
+  max-height: 14rem;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 8, 12, 0.65);
+}
+
+html.staging .staging-frame-panel__table-preview[hidden],
+html.staging .staging-frame-panel__cell-legend[hidden] {
+  display: none !important;
+}
+
+html.staging .staging-frame-panel__cell-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+html.staging .staging-frame-panel__cell-legend {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(220, 180, 120, 0.95);
+}
+
+html.staging .staging-frame-panel__select {
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(12, 12, 14, 0.95);
+  color: inherit;
+}
+
+html.staging .staging-frame-panel__textarea {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  width: 100%;
+  min-height: 4rem;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(8, 8, 10, 0.95);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+html.staging .staging-frame-panel__save {
+  align-self: flex-start;
+  margin: 0;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 3px;
+  border: 1px solid rgba(200, 160, 90, 0.55);
+  background: rgba(90, 70, 40, 0.55);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+html.staging .staging-frame-panel__save:hover {
+  background: rgba(110, 90, 55, 0.72);
+}
+
+html.staging .staging-frame-panel__save-footer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+html.staging .staging-frame-panel__save--all {
+  width: 100%;
+  box-sizing: border-box;
+}

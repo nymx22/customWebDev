@@ -1,0 +1,17 @@
+/* Bundled fonts under assets/fonts/. `font-family` must match server GET /api/fonts → cssFamily (CustomdevAsset_<stem>). */
+@font-face {
+  font-family: "CustomdevAsset_mingliu";
+  src: url("../assets/fonts/mingliu.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Legacy name still referenced by older DB / body stacks — same file as CustomdevAsset_mingliu. */
+@font-face {
+  font-family: "MingLiuCustom";
+  src: url("../assets/fonts/mingliu.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

@@ -65,13 +65,13 @@ export function resolveLayoutApiBaseForGallery(opts, ctx = {}) {
   if (opts && typeof opts.layoutApiBase === "string" && opts.layoutApiBase.trim()) {
     return opts.layoutApiBase.trim().replace(/\/$/, "");
   }
-  const staging =
-    ctx.staging != null
-      ? ctx.staging
-      : typeof document !== "undefined" &&
-          document.documentElement.classList.contains("staging") &&
-          !document.documentElement.classList.contains("official-live");
-  if (!staging) {
+  if (ctx.staging === false) {
+    return null;
+  }
+  if (
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("official-live")
+  ) {
     return null;
   }
   return resolveDefaultLayoutApiBase();

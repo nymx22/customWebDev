@@ -1,11 +1,3 @@
-@font-face {
-  font-family: "MingLiuCustom";
-  src: url("../mingliu.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -25,7 +17,7 @@ body {
 }
 
 body {
-  font-family: "MingLiuCustom", "PMingLiU", "MingLiU", serif;
+  font-family: "CustomdevAsset_mingliu", "MingLiuCustom", "PMingLiU", "MingLiU", serif;
   background: #000;
   color: #fff;
   min-height: 100vh;
@@ -34,6 +26,59 @@ body {
 
 .portfolio {
   min-height: 100vh;
+}
+
+/* Homepage (laptop): 2×4 grid fills the window; frame cell mounts in slots (index.html + site-frame.js). */
+@media (min-width: 1024px) {
+  html:has(body.page-home) {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body.page-home {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.page-home main.portfolio.column-layout--rows-2.page-home-main {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  body.page-home .column-layout--rows-2 .column-slot {
+    min-height: 0;
+  }
+
+  body.page-home .column-slot--projects,
+  body.page-home .column-slot--name {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 0;
+  }
+
+  body.page-home .column-slot--projects .site-frame__cell-mount {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(16px, 4vmin, 36px) clamp(20px, 4vmin, 28px);
+    box-sizing: border-box;
+  }
+
+  body.page-home .column-slot--name .site-frame__cell-mount {
+    padding: clamp(16px, 4vmin, 36px) clamp(20px, 4vmin, 28px);
+    box-sizing: border-box;
+  }
 }
 
 .projects {
@@ -373,8 +418,7 @@ body.page-farewell-mr-fuji .draggable-gallery--zoom-open .draggable-gallery__zoo
     overflow: hidden;
   }
 
-  /* Match laptop: row 1 = projects, row 2 = name at top of second row (not pushed to bottom). */
-  body.page-home .portfolio.column-layout--rows-2 {
+  body.page-home main.portfolio.column-layout--rows-2.page-home-main {
     height: 100dvh;
     max-height: 100dvh;
     min-height: 0;
@@ -385,17 +429,18 @@ body.page-farewell-mr-fuji .draggable-gallery--zoom-open .draggable-gallery__zoo
     align-content: stretch;
   }
 
-  body.page-home .column-slot--projects {
+  body.page-home .column-slot--projects,
+  body.page-home .column-slot--name {
     min-height: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
 
-  body.page-home .projects {
+  body.page-home .column-slot--projects .site-frame__cell-mount {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
   }
 
   /* Farewell, Mr. Fuji: one screen, gallery fills space below header */

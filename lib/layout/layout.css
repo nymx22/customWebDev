@@ -1,7 +1,9 @@
-/* Column primitives: homepage two-row grid and contact four-column grid at laptop widths. */
+/* Column primitives: homepage two-row grid and contact four-column grid at laptop widths.
+   `--column-grid-border` is used for staging-only dotted grid guides (see `html.staging` rules below). */
 
 .column-layout {
   --columns-laptop: 4;
+  --column-grid-border: rgba(255, 255, 255, 0.26);
   min-height: 100vh;
   display: block;
 }
@@ -27,13 +29,20 @@
 }
 
 @media (min-width: 1024px) {
-  /* Homepage: two rows × four columns (projects row 1 col 2, name row 2 col 2). */
+  /* Homepage: row count × column count from SQLite `frame` (`--site-frame-rows`, `--columns-laptop` on `main`; site-frame.js). */
   .column-layout--rows-2 {
+    --site-frame-rows: 2;
     display: grid;
     grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: repeat(var(--site-frame-rows, 2), minmax(0, 1fr));
     min-height: 100vh;
     align-items: stretch;
+  }
+
+  /* Outer dotted frame — staging only. Internal guides: `style/frame/site-frame.css` (::before on `.site-frame--staging.column-layout--rows-2`). */
+  html.staging .column-layout--rows-2 {
+    border: 1px dotted var(--column-grid-border);
+    box-sizing: border-box;
   }
 
   .column-layout--rows-2 .column-slot--spacer {
@@ -46,6 +55,16 @@
     grid-template-columns: repeat(var(--columns-laptop), minmax(0, 1fr));
     align-items: stretch;
     min-height: 100vh;
+  }
+
+  html.staging .column-layout--contact {
+    border: 1px dotted var(--column-grid-border);
+    box-sizing: border-box;
+  }
+
+  html.staging .column-layout--contact .column-slot:not(:nth-child(4n)) {
+    border-right: 1px dotted var(--column-grid-border);
+    box-sizing: border-box;
   }
 
   .column-layout--contact .column-slot--spacer {
