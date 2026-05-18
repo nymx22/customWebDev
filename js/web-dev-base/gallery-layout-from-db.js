@@ -3,6 +3,8 @@
  * Interaction prefs (gestures, scroll, zoom open/close anim, stripClosedAlign) stay in gallery-core session/publish.
  */
 
+import { isOfficialLiveDocument } from "./layout-baked.js";
+
 /**
  * @param {string} [pathname]
  * @returns {string}
@@ -68,10 +70,7 @@ export function resolveLayoutApiBaseForGallery(opts, ctx = {}) {
   if (ctx.staging === false) {
     return null;
   }
-  if (
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("official-live")
-  ) {
+  if (typeof document !== "undefined" && isOfficialLiveDocument()) {
     return null;
   }
   return resolveDefaultLayoutApiBase();

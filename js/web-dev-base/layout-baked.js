@@ -3,25 +3,68 @@
  * Used on official-live and whenever API is unavailable but baked files exist.
  */
 
+const OFFICIAL_LIVE_STORAGE_KEY = "customdev_official_live";
+
+/**
+ * @param {string | null | undefined} raw
+ * @returns {boolean | null}
+ */
+function parseOfficialLiveFlag(raw) {
+  if (raw == null) {
+    return null;
+  }
+  const s = String(raw).trim().toLowerCase();
+  if (!s) {
+    return true;
+  }
+  if (s === "true" || s === "1" || s === "yes" || s === "on") {
+    return true;
+  }
+  if (s === "false" || s === "0" || s === "no" || s === "off") {
+    return false;
+  }
+  return null;
+}
+
+function readOfficialLiveStorageOverride() {
+  try {
+    return parseOfficialLiveFlag(window.localStorage.getItem(OFFICIAL_LIVE_STORAGE_KEY));
+  } catch (_e) {
+    return null;
+  }
+}
+
 /**
  * @returns {boolean}
  */
 export function isOfficialLiveDocument() {
+  const fromStorage = readOfficialLiveStorageOverride();
+  if (fromStorage !== null) {
+    return fromStorage;
+  }
   try {
     const html = document.documentElement;
     if (html.classList.contains("official-live")) {
       return true;
     }
-    const attr = html.getAttribute("data-official-live");
-    if (attr === "true" || attr === "1") {
+    if (html.hasAttribute("data-official-live")) {
+      const fromAttr = parseOfficialLiveFlag(html.getAttribute("data-official-live"));
+      if (fromAttr !== null) {
+        return fromAttr;
+      }
       return true;
     }
   } catch (_e) {
     /* ignore */
   }
   const m = document.querySelector('meta[name="customdev-official-live"]');
-  const c = m && m.getAttribute("content");
-  return c === "true" || c === "1";
+  if (m) {
+    const fromMeta = parseOfficialLiveFlag(m.getAttribute("content"));
+    if (fromMeta !== null) {
+      return fromMeta;
+    }
+  }
+  return false;
 }
 
 /**
