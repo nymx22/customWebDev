@@ -836,7 +836,7 @@ export async function createDraggableGallery(root, options) {
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     galleryZoomOpenAnim = reduceMotion ? "none" : normalizeZoomOpenAnim(p.zoomOpenAnim);
-    if (reduceMotion) {
+    if (reduceMotion && !gallerySlideTransitionLockedByLayoutApi) {
       gallerySlideTransition = "none";
     } else if (!gallerySlideTransitionLockedByLayoutApi) {
       gallerySlideTransition = normalizeSlideTransition(p.slideTransition);

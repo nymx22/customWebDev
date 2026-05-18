@@ -28,6 +28,12 @@ function parseOfficialLiveFlag(raw) {
 
 function readOfficialLiveStorageOverride() {
   try {
+    if (
+      typeof document !== "undefined" &&
+      !document.documentElement.classList.contains("staging")
+    ) {
+      return null;
+    }
     return parseOfficialLiveFlag(window.localStorage.getItem(OFFICIAL_LIVE_STORAGE_KEY));
   } catch (_e) {
     return null;
@@ -187,26 +193,12 @@ export function resolveGalleryLayoutSource(opts, ctx = {}) {
     }
     return null;
   }
-  if (
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("official-live")
-  ) {
+  if (typeof document !== "undefined" && isOfficialLiveDocument()) {
     const baked = resolveBakedLayoutBase();
-    if (baked && shouldUseBakedLayout(opts)) {
+    if (baked) {
       return { type: "baked", base: baked };
     }
-    if (typeof window !== "undefined" && typeof window.__CUSTOMDEV_LAYOUT_API__ === "string") {
-      const t = window.__CUSTOMDEV_LAYOUT_API__.trim();
-      if (t) {
-        return { type: "api", base: t.replace(/\/$/, "") };
-      }
-    }
-    const m = document.querySelector('meta[name="customdev-layout-api"]');
-    const c = m && m.getAttribute("content");
-    if (c && String(c).trim()) {
-      return { type: "api", base: String(c).trim().replace(/\/$/, "") };
-    }
-    return baked ? { type: "baked", base: baked } : null;
+    return null;
   }
   if (typeof window !== "undefined" && typeof window.__CUSTOMDEV_LAYOUT_API__ === "string") {
     const t = window.__CUSTOMDEV_LAYOUT_API__.trim();
