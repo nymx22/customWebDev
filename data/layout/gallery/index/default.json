@@ -1,0 +1,21 @@
+{
+  "page": {
+    "id": 1,
+    "name": "index",
+    "header": 0,
+    "footer": 0
+  },
+  "gallery": {
+    "id": 1,
+    "pageId": 1,
+    "galleryKey": "default",
+    "thumbnail": 1,
+    "zoom": 1,
+    "zoomStyle": "",
+    "columnCount": 2,
+    "rowCount": 1,
+    "galleryStyle": "",
+    "thumbnailStyle": ""
+  },
+  "font": null
+}

@@ -12,6 +12,7 @@ import {
   pageNameFromPathname,
   resolveLayoutApiBaseForGallery,
 } from "../gallery-layout-from-db.js";
+import { fetchGalleryLayoutPayload, resolveGalleryLayoutSource } from "../layout-baked.js";
 
 /** Session key when `html.staging`: values `half-click` | `zoom-close` for draggable gallery nav mode. */
 export const STAGING_GALLERY_NAV_STORAGE_KEY = "customdev_staging_gallery_nav";
@@ -636,19 +637,21 @@ export async function createDraggableGallery(root, options) {
   let layoutDbStripZoomFlags = { thumbnail: 1, zoom: 1 };
 
   let galleryPrefsStorageId = "";
-  if (root.id && String(root.id).trim()) {
+    if (root.id && String(root.id).trim()) {
     galleryPrefsStorageId = String(root.id).trim();
-  } else {
-    if (!root.dataset.stagingGalleryStorageId) {
-      root.dataset.stagingGalleryStorageId = `sg-${Math.random().toString(36).slice(2, 11)}`;
-    }
+    } else {
+      if (!root.dataset.stagingGalleryStorageId) {
+        root.dataset.stagingGalleryStorageId = `sg-${Math.random().toString(36).slice(2, 11)}`;
+      }
     galleryPrefsStorageId = root.dataset.stagingGalleryStorageId;
   }
 
   const showStagingGalleryToolbar =
     opts.stagingGalleryToolbar !== false && isHtmlStagingEnabled();
 
-  const layoutApiBaseResolved = resolveLayoutApiBaseForGallery(opts);
+  const layoutSource = resolveGalleryLayoutSource(opts);
+  const layoutApiBaseResolved =
+    layoutSource && layoutSource.type === "api" ? layoutSource.base : null;
   const layoutPageName =
     typeof opts.pageName === "string" && opts.pageName.trim()
       ? opts.pageName.trim()
@@ -861,22 +864,22 @@ export async function createDraggableGallery(root, options) {
     }
   }
 
-  if (layoutApiBaseResolved) {
+  if (layoutSource) {
     try {
-      const lr = await fetch(
-        `${layoutApiBaseResolved}/api/layout?page=${encodeURIComponent(layoutPageName)}&galleryKey=${encodeURIComponent(layoutGalleryKey)}`,
-        { mode: "cors" },
+      layoutDbPayload = await fetchGalleryLayoutPayload(
+        layoutPageName,
+        layoutGalleryKey,
+        opts,
       );
-      if (!lr.ok) {
-        layoutLayoutFetchError = `HTTP ${lr.status}`;
-        layoutDbPayload = null;
+      if (!layoutDbPayload) {
+        layoutLayoutFetchError =
+          layoutSource.type === "baked" ? "baked missing" : "HTTP error";
         try {
           delete root.dataset.galleryRegistryId;
         } catch (_e0) {
           /* ignore */
         }
       } else {
-        layoutDbPayload = await lr.json();
         const g = layoutDbPayload && layoutDbPayload.gallery;
         if (g && typeof g === "object") {
           const mapped = mapGalleryRowToInitialOptions(/** @type {Record<string, unknown>} */ (g));
@@ -2542,16 +2545,16 @@ export async function createDraggableGallery(root, options) {
         zoom.classList.remove("is-entering");
         zoom.classList.add("is-visible");
       } else {
-        zoom.classList.remove("is-visible", "is-entering");
-        window.requestAnimationFrame(function () {
-          window.requestAnimationFrame(function () {
-            zoom.classList.add("is-visible", "is-entering");
-            enterTimer = window.setTimeout(function () {
-              zoom.classList.remove("is-entering");
-              enterTimer = null;
-            }, 320);
-          });
-        });
+    zoom.classList.remove("is-visible", "is-entering");
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        zoom.classList.add("is-visible", "is-entering");
+        enterTimer = window.setTimeout(function () {
+          zoom.classList.remove("is-entering");
+          enterTimer = null;
+        }, 320);
+      });
+    });
       }
     } else {
       zoom.classList.remove("is-entering");

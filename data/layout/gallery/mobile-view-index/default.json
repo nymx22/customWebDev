@@ -1,0 +1,21 @@
+{
+  "page": {
+    "id": 5,
+    "name": "mobile-view-index",
+    "header": 1,
+    "footer": 1
+  },
+  "gallery": {
+    "id": 5,
+    "pageId": 5,
+    "galleryKey": "default",
+    "thumbnail": 1,
+    "zoom": 1,
+    "zoomStyle": "",
+    "columnCount": 2,
+    "rowCount": 1,
+    "galleryStyle": "",
+    "thumbnailStyle": ""
+  },
+  "font": null
+}

@@ -1,0 +1,116 @@
+{
+  "page": {
+    "id": 1,
+    "name": "index",
+    "header": 0,
+    "footer": 0
+  },
+  "frame": {
+    "id": 1,
+    "pageId": 1,
+    "columnCount": 2,
+    "rowCount": 2,
+    "label": "home",
+    "gridGap": {
+      "topPct": 8.0,
+      "rightPct": 0.0,
+      "bottomPct": 0.0,
+      "leftPct": 15.0
+    },
+    "notes": "",
+    "defaultTextFontFamily": "",
+    "defaultTextFontSize": 22
+  },
+  "cells": [
+    {
+      "id": 33,
+      "frameId": 1,
+      "cellIndex": 0,
+      "contentType": "text",
+      "body": "A Missing Tile\nCase\nDelicious\nSlow Boat\nFarewell, Mr. Fuji",
+      "cellRole": "",
+      "cellPadding": "",
+      "textStyle": {
+        "fontFamily": "",
+        "fontSize": 25,
+        "lineHeightPct": 118,
+        "padding": "",
+        "navUrl": "",
+        "navLabel": "",
+        "bodyBlocks": [
+          {
+            "type": "text",
+            "value": "A Missing Tile"
+          },
+          {
+            "type": "text",
+            "value": "Case"
+          },
+          {
+            "type": "text",
+            "value": "Delicious"
+          },
+          {
+            "type": "text",
+            "value": "Slow Boat"
+          },
+          {
+            "type": "text",
+            "value": "Farewell, Mr. Fuji",
+            "href": "pages/farewell-mr-fuji.html"
+          }
+        ],
+        "linkStyle": {
+          "underline": false,
+          "colorInherit": true,
+          "color": "",
+          "hover": true,
+          "hoverColorInherit": true,
+          "hoverColor": ""
+        }
+      }
+    },
+    {
+      "id": 34,
+      "frameId": 1,
+      "cellIndex": 1,
+      "contentType": "empty",
+      "body": "",
+      "cellRole": "",
+      "cellPadding": "",
+      "textStyle": null
+    },
+    {
+      "id": 35,
+      "frameId": 1,
+      "cellIndex": 2,
+      "contentType": "empty",
+      "body": "",
+      "cellRole": "",
+      "cellPadding": "",
+      "textStyle": null
+    },
+    {
+      "id": 36,
+      "frameId": 1,
+      "cellIndex": 3,
+      "contentType": "image",
+      "body": "images/setting/page00.jpg",
+      "cellRole": "",
+      "cellPadding": {
+        "topPct": 0.0,
+        "rightPct": 0.0,
+        "bottomPct": 2.0,
+        "leftPct": 0.0
+      },
+      "textStyle": null,
+      "imageStyle": {
+        "objectFit": "contain",
+        "objectAlign": "bottom",
+        "maxWidth": "",
+        "scalePct": 37,
+        "linkHref": ""
+      }
+    }
+  ]
+}

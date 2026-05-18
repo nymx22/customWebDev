@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -933,6 +934,31 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/export-layout":
+            script = os.path.join(REPO_ROOT, "lib", "db", "export_layout.py")
+            try:
+                proc = subprocess.run(
+                    [sys.executable, script],
+                    cwd=REPO_ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                if proc.returncode != 0:
+                    err = (proc.stderr or proc.stdout or "export failed").strip()
+                    self._send(500, json.dumps({"error": err}).encode())
+                    return
+                manifest_path = os.path.join(REPO_ROOT, "data", "layout", "manifest.json")
+                summary = {"ok": True, "outDir": "data/layout"}
+                if os.path.isfile(manifest_path):
+                    with open(manifest_path, encoding="utf-8") as mf:
+                        summary["manifest"] = json.load(mf)
+                self._send(200, json.dumps(summary).encode())
+            except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+                self._send(500, json.dumps({"error": str(e)}).encode())
+            return
+
         if parsed.path == "/api/page":
             try:
                 data = self._read_json()

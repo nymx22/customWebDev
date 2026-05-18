@@ -90,3 +90,12 @@ Local layout API (read/write this DB during staging):
   `PATCH /api/frame`: body `{ id, label?, gridGap?, notes?, columnCount?, rowCount?, defaultTextFontFamily?, defaultTextFontSize? }`. Changing **columnCount**×**rowCount** clears all `frame_cell` rows and inserts empty cells; same dimensions only updates metadata.
 
 Staging in the browser uses this API for the **Pages, frames & galleries** dialog, per-gallery layout in the “Gallery testing” panel, and the **Frame** editor on pages with `data-site-frame-page` (label + panel from `js/web-dev-base/staging-gui-settings.js`, wired by `site-frame.js`; see lib/staging/staging.txt).
+
+Static deploy (Option B — bake DB to JSON):
+
+  npm run export:layout
+  # writes data/layout/ (frame/*.json, gallery/<page>/<key>.json, manifest.json)
+
+  Staging **Publish** also calls POST /api/export-layout after saving SQLite.
+
+  On **official-live** pages, the site loads baked JSON from data/layout/ (see data/layout/README.txt and js/web-dev-base/layout-baked.js). No Python API is required on the public host — deploy static files + data/layout/ only.

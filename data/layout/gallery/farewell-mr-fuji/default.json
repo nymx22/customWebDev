@@ -1,0 +1,26 @@
+{
+  "page": {
+    "id": 4,
+    "name": "farewell-mr-fuji",
+    "header": 1,
+    "footer": 1
+  },
+  "gallery": {
+    "id": 4,
+    "pageId": 4,
+    "galleryKey": "default",
+    "thumbnail": 1,
+    "zoom": 1,
+    "zoomStyle": "bookflip",
+    "columnCount": 2,
+    "rowCount": 1,
+    "galleryStyle": "",
+    "thumbnailStyle": ""
+  },
+  "font": {
+    "id": 1,
+    "pageId": 4,
+    "fontSize": 16,
+    "fontFamily": "system-ui, sans-serif"
+  }
+}

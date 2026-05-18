@@ -16,6 +16,7 @@ import {
 } from "./frame-cell-padding.js";
 import { renderBodyBlocksIntoParagraph, resolveBodyBlocks, sanitizeNavUrl } from "./frame-text-blocks.js";
 import { applyTextLinkStyleToWrap, normalizeTextLinkStyle } from "./frame-text-link-style.js";
+import { fetchBakedFrame } from "./layout-baked.js";
 import { applyGridGapStyles } from "./frame-grid-gap.js";
 import { buildTabTextTable } from "./frame-tab-table.js";
 import { STAGING_FRAME_SETTINGS_EVENT, mountFrameStagingTestingGui } from "./staging-gui-settings.js";
@@ -415,22 +416,27 @@ export async function mountSiteFramePage(options) {
   let initialFrame = null;
 
   async function loadAndApply() {
-    if (!api) {
+    /** @type {{ page?: object, frame?: object, cells?: object[] } | null} */
+    let data = null;
+    if (api) {
+      try {
+        const res = await fetch(`${api}/api/frame?page=${encodeURIComponent(pageName)}`, {
+          mode: "cors",
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch (_e) {
+        data = null;
+      }
+    }
+    if (!data) {
+      data = await fetchBakedFrame(pageName);
+    }
+    if (!data) {
       initialFrame = null;
       return;
     }
-    let res;
-    try {
-      res = await fetch(`${api}/api/frame?page=${encodeURIComponent(pageName)}`, { mode: "cors" });
-    } catch (_e) {
-      initialFrame = null;
-      return;
-    }
-    if (!res.ok) {
-      initialFrame = null;
-      return;
-    }
-    const data = await res.json();
     const frame = data.frame;
     initialFrame = frame && typeof frame === "object" ? frame : null;
     const cells = Array.isArray(data.cells) ? data.cells : [];

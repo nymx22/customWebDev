@@ -2,6 +2,8 @@
   "name": "customdev",
   "private": true,
   "scripts": {
-    "dev:api": "python3 server/dev_api.py"
+    "dev:api": "python3 server/dev_api.py",
+    "export:layout": "python3 lib/db/export_layout.py",
+    "publish:bake": "python3 lib/db/export_layout.py"
   }
 }
