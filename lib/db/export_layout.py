@@ -105,6 +105,8 @@ def export_layout(out_dir: Path | None = None) -> dict:
             "sourceDb": str(DB_PATH.relative_to(REPO_ROOT))
             if DB_PATH.is_relative_to(REPO_ROOT)
             else str(DB_PATH),
+            "homePage": "index",
+            "homePageId": None,
             "frames": frame_pages,
             "galleries": gallery_exports,
         }

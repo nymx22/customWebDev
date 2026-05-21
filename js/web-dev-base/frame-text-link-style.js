@@ -8,6 +8,7 @@
  *   hoverColorInherit: boolean,
  *   hoverColor: string,
  * }} TextLinkStyle
+ * `hover` enables hover color/opacity only; `underline` controls underline in all states.
  */
 
 /** Site default: match `.photographer-link` / `.project-link` (no underline, inherit, subtle hover). */
@@ -72,21 +73,20 @@ export function applyTextLinkStyleToWrap(textWrap, linkStyle) {
   }
   const s = normalizeTextLinkStyle(linkStyle);
   const color = s.colorInherit || !s.color ? "inherit" : s.color;
-  const hoverColor =
-    s.hoverColorInherit || !s.hoverColor ? "inherit" : s.hoverColor;
   const decoration = s.underline ? "underline" : "none";
-  const hoverDecoration = s.hover ? "underline" : decoration;
-  const hoverActive = s.hover || !s.hoverColorInherit || Boolean(s.hoverColor);
+  let hoverColor = color;
+  let hoverOpacity = "1";
+  if (s.hover) {
+    hoverColor = s.hoverColorInherit || !s.hoverColor ? "inherit" : s.hoverColor;
+    hoverOpacity = s.hoverColorInherit && !s.hoverColor ? "0.92" : "1";
+  }
 
   textWrap.dataset.frameLinkStyle = "1";
   textWrap.style.setProperty("--frame-link-color", color);
-  textWrap.style.setProperty("--frame-link-hover-color", hoverActive ? hoverColor : color);
+  textWrap.style.setProperty("--frame-link-hover-color", hoverColor);
   textWrap.style.setProperty("--frame-link-decoration", decoration);
-  textWrap.style.setProperty("--frame-link-hover-decoration", hoverDecoration);
-  textWrap.style.setProperty(
-    "--frame-link-hover-opacity",
-    hoverActive && s.hoverColorInherit && !s.hoverColor ? "0.92" : "1",
-  );
+  textWrap.style.setProperty("--frame-link-hover-decoration", decoration);
+  textWrap.style.setProperty("--frame-link-hover-opacity", hoverOpacity);
 }
 
 /**
@@ -135,7 +135,7 @@ export function mountTextLinkStyleEditor(parent, opts = {}) {
   const checkRow = document.createElement("div");
   checkRow.className = "staging-frame-panel__link-style-checks";
   const underlineRow = makeCheck("Underline");
-  const hoverRow = makeCheck("Hover");
+  const hoverRow = makeCheck("Hover color");
   checkRow.appendChild(underlineRow.lab);
   checkRow.appendChild(hoverRow.lab);
 
@@ -198,8 +198,20 @@ export function mountTextLinkStyleEditor(parent, opts = {}) {
   wireColor(colorRow.inheritCb, colorRow.picker, colorRow.hex);
   wireColor(hoverColorRow.inheritCb, hoverColorRow.picker, hoverColorRow.hex);
 
+  function syncHoverColorUi() {
+    const on = hoverRow.cb.checked;
+    hoverColorRow.wrap.hidden = !on;
+    if (!on) {
+      return;
+    }
+    syncColorUi(hoverColorRow.inheritCb, hoverColorRow.picker, hoverColorRow.hex);
+  }
+
   [underlineRow.cb, hoverRow.cb].forEach((cb) => {
-    cb.addEventListener("change", onChange);
+    cb.addEventListener("change", () => {
+      syncHoverColorUi();
+      onChange();
+    });
   });
 
   function read() {
@@ -230,9 +242,10 @@ export function mountTextLinkStyleEditor(parent, opts = {}) {
       hoverColorRow.picker.value = s.hoverColor;
     }
     syncColorUi(colorRow.inheritCb, colorRow.picker, colorRow.hex);
-    syncColorUi(hoverColorRow.inheritCb, hoverColorRow.picker, hoverColorRow.hex);
+    syncHoverColorUi();
   }
 
+  syncHoverColorUi();
   parent.appendChild(root);
 
   return { root, read, apply };

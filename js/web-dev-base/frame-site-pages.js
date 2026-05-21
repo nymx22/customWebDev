@@ -15,7 +15,7 @@ let cachedPagesPromise = null;
  * @param {string} pageName
  * @returns {string}
  */
-export function pageNameToSiteHref(pageName) {
+export function pageNameToSiteHref(pageName, _isHome) {
   const name = String(pageName || "")
     .trim()
     .replace(/\.html$/i, "");
@@ -32,10 +32,15 @@ export function pageNameToSiteHref(pageName) {
  * @param {string} pageName
  * @returns {string}
  */
-export function pageChoiceLabel(pageName) {
+/**
+ * @param {string} pageName
+ * @param {{ isHome?: boolean }} [opts]
+ * @returns {string}
+ */
+export function pageChoiceLabel(pageName, _opts = {}) {
   const n = String(pageName || "").trim() || "index";
   if (n === "index") {
-    return "Home (index)";
+    return "Homepage (index)";
   }
   return n;
 }
@@ -45,7 +50,7 @@ export function pageChoiceLabel(pageName) {
  * @param {string} pageName
  * @returns {boolean}
  */
-export function hrefMatchesPageName(href, pageName) {
+export function hrefMatchesPageName(href, pageName, _isHome) {
   const h = String(href || "").trim();
   if (!h) {
     return false;
@@ -105,8 +110,9 @@ export async function loadSitePageChoices(apiBase) {
       const raw = Array.isArray(data && data.pages) ? data.pages : [];
       /** @type {SitePageChoice[]} */
       const out = [];
-      for (let i = 0; i < raw.length; i++) {
-        const p = raw[i];
+      const pageRows = Array.isArray(data && data.pages) ? data.pages : raw;
+      for (let i = 0; i < pageRows.length; i++) {
+        const p = pageRows[i];
         if (!p || typeof p.name !== "string") {
           continue;
         }
@@ -114,22 +120,14 @@ export async function loadSitePageChoices(apiBase) {
         if (!name) {
           continue;
         }
+        const id = typeof p.id === "number" ? p.id : 0;
         out.push({
-          id: typeof p.id === "number" ? p.id : 0,
+          id,
           name,
           href: pageNameToSiteHref(name),
           label: pageChoiceLabel(name),
         });
       }
-      out.sort((a, b) => {
-        if (a.name === "index") {
-          return -1;
-        }
-        if (b.name === "index") {
-          return 1;
-        }
-        return a.name.localeCompare(b.name);
-      });
       return out;
     })
     .catch(() => []);

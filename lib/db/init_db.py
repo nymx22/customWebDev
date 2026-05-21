@@ -34,6 +34,39 @@ INDEX_FRAME_CELL_1_HTML = """<section class="projects">
 
 INDEX_FRAME_CELL_5_HTML = """<p class="photographer"><a class="photographer-link" href="pages/contact.html">calvin van</a></p>"""
 
+CONTACT_FRAME_CELL_1_HTML = """<section class="contact-block" aria-label="Contact">
+          <div class="project-page-header"></div>
+          <p class="contact-line"><button type="button" class="contact-email-copy" data-email="calvinvan58@gmail.com" aria-label="Copy email address">calvinvan58@gmail.com</button></p>
+          <p class="contact-line"><a href="https://www.instagram.com/calvinpony/" target="_blank" rel="noopener noreferrer">calvinpony</a></p>
+        </section>"""
+
+
+def _seed_contact_frame(con: sqlite3.Connection) -> None:
+    """One 1×4 frame for the contact page (matches column-layout--contact)."""
+    row = con.execute("SELECT id FROM page WHERE name = ?", ("contact",)).fetchone()
+    if not row:
+        return
+    pid = int(row[0])
+    con.execute(
+        "INSERT INTO frame (page_id, column_count, row_count, label, grid_gap, notes, default_text_font_family, default_text_font_size) VALUES (?, 4, 1, 'contact', '', '', '', 16)",
+        (pid,),
+    )
+    fr = con.execute("SELECT id FROM frame WHERE page_id = ?", (pid,)).fetchone()
+    if not fr:
+        return
+    fid = int(fr[0])
+    specs = [
+        (0, "empty", ""),
+        (1, "html", CONTACT_FRAME_CELL_1_HTML),
+        (2, "empty", ""),
+        (3, "empty", ""),
+    ]
+    for idx, ctype, body in specs:
+        con.execute(
+            "INSERT INTO frame_cell (frame_id, cell_index, content_type, body) VALUES (?, ?, ?, ?)",
+            (fid, idx, ctype, body),
+        )
+
 
 def _seed_frames(con: sqlite3.Connection) -> None:
     """One 2×4 frame for the index page (row-major cell indices matching column-layout slots)."""
@@ -72,6 +105,7 @@ def _seed_frames(con: sqlite3.Connection) -> None:
         "UPDATE frame_cell SET cell_role = ? WHERE frame_id = ? AND cell_index = ?",
         ("credits", fid, 5),
     )
+    _seed_contact_frame(con)
 
 
 def _seed(con: sqlite3.Connection) -> None:

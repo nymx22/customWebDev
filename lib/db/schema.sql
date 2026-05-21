@@ -3,11 +3,28 @@
 
 PRAGMA foreign_keys = ON;
 
+-- Staging / registry ordering for pages (not rendered as live nav in v1).
+CREATE TABLE IF NOT EXISTS page_group (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS page (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,
   header INTEGER NOT NULL DEFAULT 1 CHECK (header IN (0, 1)),
-  footer INTEGER NOT NULL DEFAULT 1 CHECK (footer IN (0, 1))
+  footer INTEGER NOT NULL DEFAULT 1 CHECK (footer IN (0, 1)),
+  group_id INTEGER REFERENCES page_group (id) ON DELETE SET NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_group_sort ON page (group_id, sort_order);
+
+-- Singleton site row (id = 1): which page is served at `/` after Publish bake.
+CREATE TABLE IF NOT EXISTS site_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  home_page_id INTEGER REFERENCES page (id) ON DELETE SET NULL
 );
 
 -- One logical gallery config per (page, gallery_key); gallery_key distinguishes multiple galleries on the same page.
@@ -48,7 +65,8 @@ CREATE TABLE IF NOT EXISTS frame_cell (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   frame_id INTEGER NOT NULL REFERENCES frame (id) ON DELETE CASCADE,
   cell_index INTEGER NOT NULL CHECK (cell_index >= 0),
-  content_type TEXT NOT NULL DEFAULT 'empty' CHECK (content_type IN ('empty', 'html', 'image', 'table', 'text')),
+  content_type TEXT NOT NULL DEFAULT 'empty'
+    CHECK (content_type IN ('empty', 'html', 'image', 'table', 'text', 'shape', 'stack')),
   body TEXT NOT NULL DEFAULT '',
   -- Space-separated extra classes on the cell mount (sanitized in the API).
   css_class TEXT NOT NULL DEFAULT '',
@@ -74,7 +92,7 @@ CREATE TABLE IF NOT EXISTS frame_cell_text (
   nav_label TEXT NOT NULL DEFAULT '',
   -- JSON array: [{ "type": "text", "value": "…", "href": "…" }, …]
   body_blocks TEXT NOT NULL DEFAULT '',
-  -- JSON: underline, colorInherit, color, hoverUnderline, hoverColorInherit, hoverColor
+  -- JSON: underline, colorInherit, color, hover, hoverColorInherit, hoverColor
   link_style TEXT NOT NULL DEFAULT ''
 );
 
@@ -99,8 +117,48 @@ CREATE TABLE IF NOT EXISTS frame_cell_image (
     ),
   max_width TEXT NOT NULL DEFAULT '',
   link_href TEXT NOT NULL DEFAULT '',
-  -- Uniform scale within the cell mount (25–250, default 100 = 100%).
-  scale_pct INTEGER NOT NULL DEFAULT 100 CHECK (scale_pct >= 25 AND scale_pct <= 250)
+  -- Uniform scale within the cell mount (5–250, default 100 = 100%).
+  scale_pct INTEGER NOT NULL DEFAULT 100 CHECK (scale_pct >= 5 AND scale_pct <= 250),
+  -- Center position on frame grid (% of `[data-site-frame-page]`); NULL = legacy in-cell layout.
+  placement_left_pct REAL,
+  placement_top_pct REAL
+);
+
+-- Vector shape for a frame cell (`content_type` = `shape`). `frame_cell.body` stays empty.
+CREATE TABLE IF NOT EXISTS frame_cell_shape (
+  frame_cell_id INTEGER PRIMARY KEY REFERENCES frame_cell (id) ON DELETE CASCADE,
+  shape_kind TEXT NOT NULL DEFAULT 'square'
+    CHECK (shape_kind IN ('square', 'triangle', 'circle')),
+  width_pct INTEGER NOT NULL DEFAULT 40 CHECK (width_pct >= 5 AND width_pct <= 250),
+  height_pct INTEGER NOT NULL DEFAULT 40 CHECK (height_pct >= 5 AND height_pct <= 250),
+  size_mode TEXT NOT NULL DEFAULT 'keep_ratio'
+    CHECK (size_mode IN ('keep_ratio', 'stretch_grid')),
+  object_align TEXT NOT NULL DEFAULT 'center'
+    CHECK (
+      object_align IN (
+        'center',
+        'top',
+        'bottom',
+        'left',
+        'right',
+        'top-left',
+        'top-right',
+        'bottom-left',
+        'bottom-right'
+      )
+    ),
+  rotation_deg INTEGER NOT NULL DEFAULT 0 CHECK (rotation_deg >= 0 AND rotation_deg <= 360),
+  corner_radius_pct INTEGER NOT NULL DEFAULT 0 CHECK (corner_radius_pct >= 0 AND corner_radius_pct <= 50),
+  fill_enabled INTEGER NOT NULL DEFAULT 1 CHECK (fill_enabled IN (0, 1)),
+  fill_color TEXT NOT NULL DEFAULT '#000000',
+  fill_opacity_pct INTEGER NOT NULL DEFAULT 100 CHECK (fill_opacity_pct >= 0 AND fill_opacity_pct <= 100),
+  stroke_enabled INTEGER NOT NULL DEFAULT 0 CHECK (stroke_enabled IN (0, 1)),
+  stroke_color TEXT NOT NULL DEFAULT '#000000',
+  stroke_opacity_pct INTEGER NOT NULL DEFAULT 100 CHECK (stroke_opacity_pct >= 0 AND stroke_opacity_pct <= 100),
+  stroke_width_px INTEGER NOT NULL DEFAULT 2 CHECK (stroke_width_px >= 0 AND stroke_width_px <= 48),
+  link_href TEXT NOT NULL DEFAULT '',
+  placement_left_pct REAL,
+  placement_top_pct REAL
 );
 
 -- Typography for a page (one row per page).

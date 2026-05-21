@@ -3,7 +3,10 @@
     "id": 4,
     "name": "farewell-mr-fuji",
     "header": 1,
-    "footer": 1
+    "footer": 0,
+    "groupId": null,
+    "sortOrder": 10,
+    "isHome": false
   },
   "gallery": {
     "id": 4,

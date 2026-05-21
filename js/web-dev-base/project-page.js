@@ -1,5 +1,5 @@
 /**
- * Reusable project header + back link (expects matching class names in your stylesheet).
+ * Reusable project header/footer (expects matching class names in your stylesheet).
  * Site-wide “Live” / staging chrome comes from `lib/staging/staging.js`, not this module — use `<html data-official-live="true">` on production pages to hide it.
  */
 
@@ -41,57 +41,6 @@ export async function forceLandscapeMobile(options) {
   }
 
   return { classApplied: true, lockAttempted, lockSucceeded };
-}
-
-/**
- * @param {{ href?: string, label?: string, showContact?: boolean, contactHref?: string, contactLabel?: string, footerTarget?: HTMLElement | string | null }} [options]
- * – Defaults: `href` `../index.html`, `label` `back`, `showContact` false, `contactHref` `contact.html`, `contactLabel` `contact`.
- *   If a project footer exists (or `footerTarget` resolves), renders footer nav links inside that footer.
- */
-export function mountProjectBackButton(options) {
-  const o = options || {};
-  const footerMount =
-    typeof o.footerTarget === "string"
-      ? document.querySelector(o.footerTarget)
-      : o.footerTarget || document.querySelector(".project-page-footer");
-
-  if (footerMount) {
-    if (footerMount.querySelector(".project-page-footer-nav")) {
-      return;
-    }
-
-    const nav = document.createElement("nav");
-    nav.className = "project-page-footer-nav";
-    nav.setAttribute("aria-label", "Project navigation");
-
-    const back = document.createElement("a");
-    back.className = "back-link";
-    back.href = o.href != null ? o.href : "../index.html";
-    back.textContent = o.label != null ? o.label : "back";
-
-    nav.appendChild(back);
-
-    if (o.showContact === true) {
-      const contact = document.createElement("a");
-      contact.className = "contact-link";
-      contact.href = o.contactHref != null ? o.contactHref : "contact.html";
-      contact.textContent = o.contactLabel != null ? o.contactLabel : "contact";
-      nav.appendChild(contact);
-    }
-
-    footerMount.appendChild(nav);
-    return;
-  }
-
-  if (document.querySelector("a.back-link")) {
-    return;
-  }
-
-  const back = document.createElement("a");
-  back.className = "back-link";
-  back.href = o.href != null ? o.href : "../index.html";
-  back.textContent = o.label != null ? o.label : "back";
-  document.body.appendChild(back);
 }
 
 /**

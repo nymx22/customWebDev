@@ -3,7 +3,10 @@
     "id": 5,
     "name": "mobile-view-index",
     "header": 1,
-    "footer": 1
+    "footer": 1,
+    "groupId": null,
+    "sortOrder": 50,
+    "isHome": false
   },
   "gallery": {
     "id": 5,

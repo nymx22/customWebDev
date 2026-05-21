@@ -1,15 +1,16 @@
 {
   "page": {
-    "id": 3,
-    "name": "contact",
-    "header": 0,
-    "footer": 0,
+    "id": 13,
+    "name": "mobile-view-index-copy",
+    "header": 1,
+    "footer": 1,
     "groupId": null,
-    "sortOrder": 0
+    "sortOrder": 110,
+    "isHome": false
   },
   "gallery": {
-    "id": 3,
-    "pageId": 3,
+    "id": 9,
+    "pageId": 13,
     "galleryKey": "default",
     "thumbnail": 1,
     "zoom": 1,

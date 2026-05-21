@@ -106,16 +106,69 @@ export function resolveBakedLayoutBase() {
       return resolveSiteRelativePath(String(c).trim());
     }
   }
-  if (isOfficialLiveDocument()) {
-    return resolveSiteRelativePath("data/layout");
-  }
-  return null;
+  return resolveSiteRelativePath("data/layout");
 }
 
 /**
  * @param {string} pageName
  * @returns {Promise<{ page?: object, frame?: object, cells?: object[] } | null>}
  */
+/** @type {Promise<Record<string, unknown> | null> | null} */
+let bakedManifestPromise = null;
+
+/**
+ * @returns {Promise<Record<string, unknown> | null>}
+ */
+export async function fetchBakedManifest() {
+  if (bakedManifestPromise) {
+    return bakedManifestPromise;
+  }
+  const base = resolveBakedLayoutBase();
+  if (!base) {
+    return null;
+  }
+  bakedManifestPromise = fetch(`${base}/manifest.json`)
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  return bakedManifestPromise;
+}
+
+/**
+ * Root `index.html` loads frame layout for the configured home page (`/api/site` or baked manifest).
+ * @param {string} pageName
+ * @returns {Promise<string>}
+ */
+export async function resolveHomePageName(pageName) {
+  const name = String(pageName || "").trim();
+  if (name !== "index") {
+    return name;
+  }
+  if (typeof window !== "undefined") {
+    const api =
+      typeof window.__CUSTOMDEV_LAYOUT_API__ === "string" && window.__CUSTOMDEV_LAYOUT_API__.trim()
+        ? window.__CUSTOMDEV_LAYOUT_API__.trim().replace(/\/$/, "")
+        : "";
+    if (api) {
+      try {
+        const res = await fetch(`${api}/api/site`, { mode: "cors" });
+        if (res.ok) {
+          const data = await res.json();
+          const home = data && typeof data.homePageName === "string" ? data.homePageName.trim() : "";
+          if (home) {
+            return home;
+          }
+        }
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+  }
+  const manifest = await fetchBakedManifest();
+  const baked =
+    manifest && typeof manifest.homePage === "string" ? String(manifest.homePage).trim() : "";
+  return baked || "index";
+}
+
 export async function fetchBakedFrame(pageName) {
   const base = resolveBakedLayoutBase();
   const name = String(pageName || "").trim();

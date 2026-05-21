@@ -1,0 +1,43 @@
+---
+description: Frame image/shape placement — one coordinate system for staging, preview live, and publish
+alwaysApply: true
+---
+
+# Frame placement (staging = live)
+
+## Coordinate system
+
+- **Host:** `[data-site-frame-page]` (the frame `main` / root), `position: relative`, **`height: 100dvh`** on homepage (see `style/frame/site-frame.css` + `lib/staging/staging.css`).
+- **Storage:** `placementLeftPct`, `placementTopPct` in SQLite (`frame_cell_image` / `frame_cell_shape`) and baked `data/layout/frame/*.json` — **0–100**, one decimal, center anchor.
+- **Render:** Placed layers are children of the frame root (`.site-frame__cell-placed-layer`), **not** the cell mount. `left` / `top` are **% of the frame root**; `transform: translate(-50%, -50%)`.
+- **Scale:** `scalePct` (images) or shape width/height % are relative to the **same frame root box** when placement is active (`frame-cell-image.js`, `frame-cell-shape.js`).
+
+## Per-page frame
+
+- Each HTML page’s `main[data-site-frame-page]` must match `mountSiteFramePage({ pageName })` and the SQLite `page.name`.
+- **Publish** saves the current page plus any other pages with pending edits in `sessionStorage` (`frame-layout-persist.js`).
+
+## Do not
+
+- Append a placed wrap to `mountEl` after `applyFramePlacementToWrap()` (that moves it back into the cell and hides it).
+- Measure placement against `window` / `visualViewport` while the frame root uses a different height (causes publish drift).
+- Use staging-only taller `min-height` on `main` without matching live `100dvh` for the placement box.
+
+## Code map
+
+| Concern | Module |
+|--------|--------|
+| % parse, drag, apply | `js/web-dev-base/frame-cell-placement.js` |
+| Mount image/shape | `js/web-dev-base/site-frame.js` |
+| Staging panel X/Y | `js/web-dev-base/frame-staging-panel-ui.js` |
+| API / SQLite | `server/dev_api.py` (`placement_left_pct`, `placement_top_pct`) |
+
+## Verify parity
+
+1. `npm run dev:api` running.
+2. `?staging=1` — position image, **Save**, note X/Y %.
+3. Reload without staging — same X/Y % and visual position.
+4. **Publish** — `npm run export:layout` updates baked JSON; official-live reads `data/layout/`.
+5. `npm test` and `npm run test:layout-parity` — automated checks (also run in GitHub Actions CI).
+
+When changing placement or frame height CSS, update **both** `site-frame.css` and `lib/staging/staging.css`, and run the verify steps above.

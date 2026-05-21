@@ -1,7 +1,5 @@
 project-page.js (web-dev-base)
 
-mountProjectBackButton(options?) — if a `.project-page-footer` exists (or `footerTarget` is provided), append `.project-page-footer-nav` there with `back` (and optional `contact` only when `showContact: true`; default false); otherwise append fixed `.back-link` to body if missing
-
 mountProjectPageHeader(target, options) — fill .project-page-header: optional photographer line, h1 with title as link (titleHref / homeHref, default ../index.html), optional lead; showHomeLink: false hides the home line; stickyHeader true adds .project-page-header--sticky (needs main.css); stickyHeaderTop optional CSS string for --project-page-header-sticky-top (used as position top); stickyHeaderHeight optional CSS string for --project-page-header-sticky-height
 
-mountProjectPageFooter(target, options) — fill .project-page-footer: optional text; stickyFooter true adds .project-page-footer--sticky (needs main.css); stickyFooterBottom optional CSS string for --project-page-footer-sticky-bottom (used as position bottom); stickyFooterHeight optional CSS string for --project-page-footer-sticky-height. If text is empty and stickyFooter is false, sticky classes/variables are reset without removing footer nav links.
+mountProjectPageFooter(target, options) — fill .project-page-footer: optional text; stickyFooter true adds .project-page-footer--sticky (needs main.css); stickyFooterBottom optional CSS string for --project-page-footer-sticky-bottom (used as position bottom); stickyFooterHeight optional CSS string for --project-page-footer-sticky-height. If text is empty and stickyFooter is false, sticky classes/variables are reset.

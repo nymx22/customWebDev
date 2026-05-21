@@ -27,7 +27,23 @@ import {
   invalidateSitePageChoicesCache,
   loadSitePageChoices,
 } from "./frame-site-pages.js";
+import {
+  DEFAULT_SHAPE_STYLE,
+  normalizeShapeStyle,
+  sanitizeShapeColor,
+  SHAPE_KINDS,
+  shapeScalePctFromStyle,
+} from "./frame-cell-shape.js";
 import { mountTextLinkStyleEditor } from "./frame-text-link-style.js";
+import { mountStackLayerControls } from "./frame-stack-cell-editor.js";
+import { normalizeStackLayer } from "./frame-cell-layers.js";
+import {
+  mountFrameCellPlacementDrag,
+  placementForApi,
+  placementFromStyle,
+  parsePlacementPct,
+} from "./frame-cell-placement.js";
+import { clampFrameCellScalePct, FRAME_CELL_SCALE_MAX, FRAME_CELL_SCALE_MIN } from "./frame-cell-scale.js";
 
 /**
  * @param {{
@@ -65,6 +81,7 @@ import { mountTextLinkStyleEditor } from "./frame-text-link-style.js";
  *   syncTaPlaceholder: (typeSel: HTMLSelectElement, ta: HTMLTextAreaElement) => void,
  *   getAssetImages: () => Array<{ path: string, label?: string }>,
  *   refreshAssetImages: () => Promise<Array<{ path: string, label?: string }>>,
+ *   onCellSaved?: (cell: object) => void,
  * }} deps
  */
 export function createFrameCellStagingUi(deps) {
@@ -78,6 +95,7 @@ export function createFrameCellStagingUi(deps) {
     cellDrafts,
     layoutTypoBound,
     cellSaveHandlers,
+    onCellSaved,
     getFonts,
     fillFontFamilySelect,
     syncFontFamilySelectToValue,
@@ -94,6 +112,12 @@ export function createFrameCellStagingUi(deps) {
   } = deps;
 
   let selectedCellIndex = null;
+  /** @type {HTMLInputElement | null} */
+  let placementPosXIn = null;
+  /** @type {HTMLInputElement | null} */
+  let placementPosYIn = null;
+  /** @type {HTMLElement | null} */
+  let placementWrap = null;
   /** @type {(() => void) | null} */
   let flushActiveCellDraft = null;
   /** @type {(() => void) | null} */
@@ -178,9 +202,128 @@ export function createFrameCellStagingUi(deps) {
     mountSelectedCellEditor();
   }
 
+  function applyPlacementToSelectedCell(placement) {
+    const ix = selectedCellIndex;
+    if (ix == null || !placement) {
+      return;
+    }
+    const draft = cellDrafts.get(String(ix));
+    if (!draft) {
+      return;
+    }
+    const ct = String(draft.contentType || "").toLowerCase();
+    if (ct === "image") {
+      draft.imageStyle = {
+        ...(draft.imageStyle && typeof draft.imageStyle === "object" ? draft.imageStyle : {}),
+        placementLeftPct: placement.placementLeftPct,
+        placementTopPct: placement.placementTopPct,
+      };
+    } else if (ct === "shape") {
+      draft.shapeStyle = {
+        ...normalizeShapeStyle(
+          draft.shapeStyle && typeof draft.shapeStyle === "object" ? draft.shapeStyle : {},
+        ),
+        placementLeftPct: placement.placementLeftPct,
+        placementTopPct: placement.placementTopPct,
+      };
+    } else {
+      return;
+    }
+    cellDrafts.set(String(ix), draft);
+    const mountEl = root.querySelector(`[data-frame-cell-index="${ix}"]`);
+    if (mountEl) {
+      applyCellToMount(/** @type {HTMLElement} */ (mountEl), draft);
+    }
+    if (placementPosXIn) {
+      placementPosXIn.value = String(placement.placementLeftPct);
+    }
+    if (placementPosYIn) {
+      placementPosYIn.value = String(placement.placementTopPct);
+    }
+    updateChipDirtyState();
+  }
+
+  function clearPlacementOnSelectedCell() {
+    const ix = selectedCellIndex;
+    if (ix == null) {
+      return;
+    }
+    const draft = cellDrafts.get(String(ix));
+    if (!draft) {
+      return;
+    }
+    const ct = String(draft.contentType || "").toLowerCase();
+    if (ct === "image") {
+      draft.imageStyle = {
+        ...(draft.imageStyle && typeof draft.imageStyle === "object" ? draft.imageStyle : {}),
+        placementLeftPct: null,
+        placementTopPct: null,
+      };
+    } else if (ct === "shape") {
+      draft.shapeStyle = {
+        ...normalizeShapeStyle(
+          draft.shapeStyle && typeof draft.shapeStyle === "object" ? draft.shapeStyle : {},
+        ),
+        placementLeftPct: null,
+        placementTopPct: null,
+      };
+    } else {
+      return;
+    }
+    cellDrafts.set(String(ix), draft);
+    const mountEl = root.querySelector(`[data-frame-cell-index="${ix}"]`);
+    if (mountEl) {
+      applyCellToMount(/** @type {HTMLElement} */ (mountEl), draft);
+    }
+    if (placementPosXIn) {
+      placementPosXIn.value = "";
+    }
+    if (placementPosYIn) {
+      placementPosYIn.value = "";
+    }
+    updateChipDirtyState();
+  }
+
+  function readPlacementFromPanel() {
+    if (!placementPosXIn || !placementPosYIn) {
+      return placementForApi(null);
+    }
+    const left = parsePlacementPct(placementPosXIn.value);
+    const top = parsePlacementPct(placementPosYIn.value);
+    if (left === null || top === null) {
+      return { placementLeftPct: null, placementTopPct: null };
+    }
+    return { placementLeftPct: left, placementTopPct: top };
+  }
+
+  function fillPlacementFromStyle(style) {
+    const p = placementFromStyle(style);
+    if (!placementPosXIn || !placementPosYIn) {
+      return;
+    }
+    if (!p) {
+      placementPosXIn.value = "";
+      placementPosYIn.value = "";
+      return;
+    }
+    placementPosXIn.value = String(p.placementLeftPct);
+    placementPosYIn.value = String(p.placementTopPct);
+  }
+
+  function syncPlacementWrapVisibility(contentType) {
+    if (!placementWrap) {
+      return;
+    }
+    const ct = String(contentType || "").toLowerCase();
+    placementWrap.hidden = ct !== "image" && ct !== "shape";
+  }
+
   function mountSelectedCellEditor() {
     clearImagePickerRefresh();
     flushActiveCellDraft = null;
+    placementPosXIn = null;
+    placementPosYIn = null;
+    placementWrap = null;
     cellEditorHost.replaceChildren();
     cellSaveHandlers.clear();
 
@@ -243,6 +386,8 @@ export function createFrameCellStagingUi(deps) {
       ["text", "Text"],
       ["html", "HTML"],
       ["image", "Image"],
+      ["shape", "Shape"],
+      ["stack", "Stack (layers)"],
     ].forEach(([v, lab]) => {
       const o = document.createElement("option");
       o.value = v;
@@ -277,7 +422,7 @@ export function createFrameCellStagingUi(deps) {
 
     const cellPadLab = document.createElement("div");
     cellPadLab.className = "staging-frame-panel__field-label";
-    cellPadLab.textContent = "Cell padding (% of mount)";
+    cellPadLab.textContent = "Cell padding (% of frame grid)";
 
     const cellPadRow = document.createElement("div");
     cellPadRow.className = "staging-frame-panel__cell-pad-row";
@@ -336,6 +481,60 @@ export function createFrameCellStagingUi(deps) {
     cellPadRow.appendChild(cellPadEditSidesBtn);
     cellPadLab.appendChild(cellPadRow);
     cellPadLab.appendChild(cellPadSidesGrid);
+
+    placementWrap = document.createElement("div");
+    placementWrap.className = "staging-frame-panel__placement-wrap";
+    placementWrap.hidden = true;
+    const placementTitle = document.createElement("div");
+    placementTitle.className = "staging-frame-panel__field-label";
+    placementTitle.textContent = "Position on frame grid (% — center of image/shape)";
+    placementWrap.appendChild(placementTitle);
+
+    const placementRow = document.createElement("div");
+    placementRow.className = "staging-frame-panel__placement-row";
+
+    function makePlacementField(caption) {
+      const col = document.createElement("div");
+      col.className = "staging-frame-panel__figma-field";
+      const cap = document.createElement("span");
+      cap.className = "staging-frame-panel__figma-caption";
+      cap.textContent = caption;
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.className = "staging-frame-panel__input staging-frame-panel__input--gap-pct";
+      inp.min = "0";
+      inp.max = "100";
+      inp.step = "0.5";
+      col.appendChild(cap);
+      col.appendChild(inp);
+      placementRow.appendChild(col);
+      return inp;
+    }
+
+    placementPosXIn = makePlacementField("X %");
+    placementPosYIn = makePlacementField("Y %");
+
+    const placementActions = document.createElement("div");
+    placementActions.className = "staging-frame-panel__placement-actions";
+    const placementResetBtn = document.createElement("button");
+    placementResetBtn.type = "button";
+    placementResetBtn.className = "staging-frame-panel__mini-action";
+    placementResetBtn.textContent = "Reset position";
+    const placementCenterBtn = document.createElement("button");
+    placementCenterBtn.type = "button";
+    placementCenterBtn.className = "staging-frame-panel__mini-action";
+    placementCenterBtn.textContent = "Center on grid";
+    placementActions.appendChild(placementResetBtn);
+    placementActions.appendChild(placementCenterBtn);
+
+    const placementHint = document.createElement("p");
+    placementHint.className = "staging-frame-panel__placement-hint";
+    placementHint.textContent =
+      "With this cell selected, drag the image or shape on the page to position it (same as images).";
+
+    placementWrap.appendChild(placementRow);
+    placementWrap.appendChild(placementActions);
+    placementWrap.appendChild(placementHint);
 
     const textWrap = document.createElement("div");
     textWrap.className = "staging-frame-panel__text-style";
@@ -465,8 +664,8 @@ export function createFrameCellStagingUi(deps) {
     const scaleIn = document.createElement("input");
     scaleIn.type = "number";
     scaleIn.className = "staging-frame-panel__input staging-frame-panel__input--narrow";
-    scaleIn.min = "25";
-    scaleIn.max = "250";
+    scaleIn.min = String(FRAME_CELL_SCALE_MIN);
+    scaleIn.max = String(FRAME_CELL_SCALE_MAX);
     scaleIn.step = "1";
     scaleIn.value = "100";
     scaleLab.appendChild(scaleIn);
@@ -507,6 +706,366 @@ export function createFrameCellStagingUi(deps) {
     imageWrap.appendChild(maxWLab);
     imageWrap.appendChild(imageLinkLab);
     imageWrap.appendChild(imageLinkIn);
+
+    const shapeWrap = document.createElement("div");
+    shapeWrap.className = "staging-frame-panel__shape-style";
+    shapeWrap.hidden = true;
+
+    const shapeKindLab = document.createElement("label");
+    shapeKindLab.className = "staging-frame-panel__field-label";
+    shapeKindLab.textContent = "Shape";
+    const shapeKindSel = document.createElement("select");
+    shapeKindSel.className = "staging-frame-panel__select";
+    SHAPE_KINDS.forEach((k) => {
+      const o = document.createElement("option");
+      o.value = k;
+      o.textContent = k.charAt(0).toUpperCase() + k.slice(1);
+      shapeKindSel.appendChild(o);
+    });
+    shapeKindLab.appendChild(shapeKindSel);
+
+    const shapeAlignLab = document.createElement("label");
+    shapeAlignLab.className = "staging-frame-panel__field-label";
+    shapeAlignLab.textContent = "Alignment";
+    const shapeAlignSel = document.createElement("select");
+    shapeAlignSel.className = "staging-frame-panel__select";
+    [
+      ["center", "Center"],
+      ["top", "Top"],
+      ["bottom", "Bottom"],
+      ["left", "Left"],
+      ["right", "Right"],
+      ["top-left", "Top left"],
+      ["top-right", "Top right"],
+      ["bottom-left", "Bottom left"],
+      ["bottom-right", "Bottom right"],
+    ].forEach(([v, lab]) => {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = lab;
+      shapeAlignSel.appendChild(o);
+    });
+    shapeAlignLab.appendChild(shapeAlignSel);
+
+    const shapeSizeModeLab = document.createElement("label");
+    shapeSizeModeLab.className = "staging-frame-panel__field-label";
+    shapeSizeModeLab.textContent = "Size on grid";
+    const shapeSizeModeSel = document.createElement("select");
+    shapeSizeModeSel.className = "staging-frame-panel__select";
+    [
+      ["keep_ratio", "Keep shape ratio"],
+      ["stretch_grid", "Stretch to grid"],
+    ].forEach(([v, lab]) => {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = lab;
+      shapeSizeModeSel.appendChild(o);
+    });
+    shapeSizeModeLab.appendChild(shapeSizeModeSel);
+
+    const shapeScaleLab = document.createElement("label");
+    shapeScaleLab.className = "staging-frame-panel__field-label";
+    shapeScaleLab.textContent = "Scale (%)";
+    const shapeScaleIn = document.createElement("input");
+    shapeScaleIn.type = "number";
+    shapeScaleIn.className = "staging-frame-panel__input staging-frame-panel__input--narrow";
+    shapeScaleIn.min = String(FRAME_CELL_SCALE_MIN);
+    shapeScaleIn.max = String(FRAME_CELL_SCALE_MAX);
+    shapeScaleIn.step = "1";
+    shapeScaleIn.value = "40";
+    shapeScaleLab.appendChild(shapeScaleIn);
+
+    const shapeSizeLab = document.createElement("div");
+    shapeSizeLab.className = "staging-frame-panel__field-label";
+    shapeSizeLab.textContent = "Width / height (% of cell, or frame when positioned)";
+    const shapeSizeRow = document.createElement("div");
+    shapeSizeRow.className = "staging-frame-panel__placement-row";
+
+    function makeShapeSizeField(caption) {
+      const col = document.createElement("div");
+      col.className = "staging-frame-panel__figma-field";
+      const cap = document.createElement("span");
+      cap.className = "staging-frame-panel__figma-caption";
+      cap.textContent = caption;
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.className = "staging-frame-panel__input staging-frame-panel__input--gap-pct";
+      inp.min = String(FRAME_CELL_SCALE_MIN);
+      inp.max = String(FRAME_CELL_SCALE_MAX);
+      inp.step = "1";
+      col.appendChild(cap);
+      col.appendChild(inp);
+      shapeSizeRow.appendChild(col);
+      return inp;
+    }
+
+    const shapeWidthIn = makeShapeSizeField("Width %");
+    const shapeHeightIn = makeShapeSizeField("Height %");
+
+    const shapeRotLab = document.createElement("label");
+    shapeRotLab.className = "staging-frame-panel__field-label";
+    shapeRotLab.textContent = "Rotation (°)";
+    const shapeRotIn = document.createElement("input");
+    shapeRotIn.type = "number";
+    shapeRotIn.className = "staging-frame-panel__input staging-frame-panel__input--narrow";
+    shapeRotIn.min = "0";
+    shapeRotIn.max = "360";
+    shapeRotIn.step = "1";
+    shapeRotLab.appendChild(shapeRotIn);
+
+    const shapeRadiusLab = document.createElement("label");
+    shapeRadiusLab.className = "staging-frame-panel__field-label";
+    shapeRadiusLab.textContent = "Corner radius (% of shorter side)";
+    const shapeRadiusIn = document.createElement("input");
+    shapeRadiusIn.type = "number";
+    shapeRadiusIn.className = "staging-frame-panel__input staging-frame-panel__input--narrow";
+    shapeRadiusIn.min = "0";
+    shapeRadiusIn.max = "50";
+    shapeRadiusIn.step = "1";
+    shapeRadiusLab.appendChild(shapeRadiusIn);
+
+    function makeShapeColorBlock(caption, enableLabel) {
+      const block = document.createElement("div");
+      block.className = "staging-frame-panel__shape-color-block";
+      const cap = document.createElement("div");
+      cap.className = "staging-frame-panel__field-label";
+      cap.textContent = caption;
+      const enableLab = document.createElement("label");
+      enableLab.className = "staging-frame-panel__link-style-check";
+      const enableCb = document.createElement("input");
+      enableCb.type = "checkbox";
+      const enableSpan = document.createElement("span");
+      enableSpan.textContent = enableLabel;
+      enableLab.appendChild(enableCb);
+      enableLab.appendChild(enableSpan);
+      const picker = document.createElement("input");
+      picker.type = "color";
+      picker.className = "staging-frame-panel__link-style-picker";
+      const hex = document.createElement("input");
+      hex.type = "text";
+      hex.className = "staging-frame-panel__input staging-frame-panel__link-style-hex";
+      hex.placeholder = "#rrggbb";
+      hex.spellcheck = false;
+      const opacityLab = document.createElement("label");
+      opacityLab.className = "staging-frame-panel__field-label";
+      opacityLab.textContent = "Opacity (%)";
+      const opacityIn = document.createElement("input");
+      opacityIn.type = "number";
+      opacityIn.className = "staging-frame-panel__input staging-frame-panel__input--narrow";
+      opacityIn.min = "0";
+      opacityIn.max = "100";
+      opacityIn.step = "1";
+      opacityLab.appendChild(opacityIn);
+      block.appendChild(cap);
+      block.appendChild(enableLab);
+      block.appendChild(picker);
+      block.appendChild(hex);
+      block.appendChild(opacityLab);
+      return { block, enableCb, picker, hex, opacityIn };
+    }
+
+    const fillBlock = makeShapeColorBlock("Fill", "Fill");
+    const strokeBlock = makeShapeColorBlock("Stroke", "Stroke");
+
+    const shapeStrokeWidthLab = document.createElement("label");
+    shapeStrokeWidthLab.className = "staging-frame-panel__field-label";
+    shapeStrokeWidthLab.textContent = "Stroke width (px)";
+    const shapeStrokeWidthIn = document.createElement("input");
+    shapeStrokeWidthIn.type = "number";
+    shapeStrokeWidthIn.className = "staging-frame-panel__input staging-frame-panel__input--narrow";
+    shapeStrokeWidthIn.min = "0";
+    shapeStrokeWidthIn.max = "48";
+    shapeStrokeWidthIn.step = "1";
+    shapeStrokeWidthLab.appendChild(shapeStrokeWidthIn);
+
+    const shapeLinkLab = document.createElement("label");
+    shapeLinkLab.className = "staging-frame-panel__field-label";
+    shapeLinkLab.textContent = "Link shape to page (optional)";
+    const shapePageSel = document.createElement("select");
+    shapePageSel.className = "staging-frame-panel__select staging-frame-panel__select--page-link";
+    shapeLinkLab.appendChild(shapePageSel);
+    const shapeLinkIn = document.createElement("input");
+    shapeLinkIn.type = "hidden";
+
+    /** @type {import("./frame-site-pages.js").SitePageChoice[]} */
+    let shapeSitePages = [];
+
+    async function refreshShapeSitePages() {
+      shapeSitePages = await loadSitePageChoices(api);
+      fillSitePageSelect(shapePageSel, shapeSitePages, shapeLinkIn.value, { noneLabel: "No link" });
+    }
+    void refreshShapeSitePages();
+    window.addEventListener("customdev-staging-site-structure-changed", () => {
+      invalidateSitePageChoicesCache();
+      void refreshShapeSitePages();
+    });
+
+    shapePageSel.addEventListener("change", () => {
+      shapeLinkIn.value = shapePageSel.value.trim();
+      bumpCellEditor();
+    });
+
+    shapeWrap.appendChild(shapeKindLab);
+    shapeWrap.appendChild(shapeSizeModeLab);
+    shapeWrap.appendChild(shapeScaleLab);
+    shapeWrap.appendChild(shapeSizeLab);
+    shapeWrap.appendChild(shapeSizeRow);
+    shapeWrap.appendChild(shapeAlignLab);
+    shapeWrap.appendChild(shapeRotLab);
+    shapeWrap.appendChild(shapeRadiusLab);
+    shapeWrap.appendChild(fillBlock.block);
+    shapeWrap.appendChild(strokeBlock.block);
+    shapeWrap.appendChild(shapeStrokeWidthLab);
+    shapeWrap.appendChild(shapeLinkLab);
+    shapeWrap.appendChild(shapeLinkIn);
+
+    function syncShapeColorBlock(block, enabled) {
+      block.picker.disabled = !enabled;
+      block.hex.disabled = !enabled;
+      block.opacityIn.disabled = !enabled;
+    }
+
+    function syncShapeSizeFieldsVisibility() {
+      const keep = shapeSizeModeSel.value === "keep_ratio";
+      shapeScaleLab.hidden = !keep;
+      shapeSizeLab.hidden = keep;
+      shapeSizeRow.hidden = keep;
+    }
+
+    function applyShapeSizeModeSwitch() {
+      if (shapeSizeModeSel.value === "keep_ratio") {
+        const scale = clampFrameCellScalePct(
+          Math.max(Number(shapeWidthIn.value) || 0, Number(shapeHeightIn.value) || 0),
+          Number(shapeScaleIn.value) || 40,
+        );
+        shapeScaleIn.value = String(scale);
+        shapeWidthIn.value = String(scale);
+        shapeHeightIn.value = String(scale);
+      } else {
+        const scale = clampFrameCellScalePct(shapeScaleIn.value, Number(shapeWidthIn.value) || 40);
+        shapeWidthIn.value = String(scale);
+        shapeHeightIn.value = String(scale);
+      }
+      syncShapeSizeFieldsVisibility();
+    }
+
+    function syncShapePanelVisibility() {
+      shapeRadiusLab.hidden = shapeKindSel.value !== "square";
+      shapeStrokeWidthLab.hidden = !strokeBlock.enableCb.checked;
+      syncShapeSizeFieldsVisibility();
+    }
+
+    function readShapeStyleFromMount() {
+      const raw = mount.dataset.frameShapeStyle;
+      if (!raw) {
+        return {};
+      }
+      try {
+        return JSON.parse(decodeURIComponent(raw));
+      } catch (_e) {
+        return {};
+      }
+    }
+
+    function applyShapeStyleInputs(st) {
+      const s = normalizeShapeStyle(st);
+      shapeKindSel.value = s.shapeKind;
+      shapeSizeModeSel.value = s.sizeMode;
+      shapeScaleIn.value = String(shapeScalePctFromStyle(s));
+      shapeWidthIn.value = String(s.widthPct);
+      shapeHeightIn.value = String(s.heightPct);
+      shapeAlignSel.value = s.objectAlign;
+      shapeRotIn.value = String(s.rotationDeg);
+      shapeRadiusIn.value = String(s.cornerRadiusPct);
+      fillBlock.enableCb.checked = s.fillEnabled;
+      fillBlock.hex.value = s.fillColor;
+      if (/^#[0-9a-f]{6}$/i.test(s.fillColor)) {
+        fillBlock.picker.value = s.fillColor;
+      }
+      fillBlock.opacityIn.value = String(s.fillOpacityPct);
+      strokeBlock.enableCb.checked = s.strokeEnabled;
+      strokeBlock.hex.value = s.strokeColor;
+      if (/^#[0-9a-f]{6}$/i.test(s.strokeColor)) {
+        strokeBlock.picker.value = s.strokeColor;
+      }
+      strokeBlock.opacityIn.value = String(s.strokeOpacityPct);
+      shapeStrokeWidthIn.value = String(s.strokeWidthPx);
+      shapeLinkIn.value = s.linkHref;
+      fillSitePageSelect(shapePageSel, shapeSitePages, s.linkHref, { noneLabel: "No link" });
+      syncShapeColorBlock(fillBlock, s.fillEnabled);
+      syncShapeColorBlock(strokeBlock, s.strokeEnabled);
+      syncShapePanelVisibility();
+      fillPlacementFromStyle(s);
+    }
+
+    function readShapeStyleFromForm() {
+      const sizeMode = shapeSizeModeSel.value === "stretch_grid" ? "stretch_grid" : "keep_ratio";
+      const scale = clampFrameCellScalePct(shapeScaleIn.value, 40);
+      return normalizeShapeStyle({
+        shapeKind: shapeKindSel.value,
+        sizeMode,
+        widthPct: sizeMode === "keep_ratio" ? scale : shapeWidthIn.value,
+        heightPct: sizeMode === "keep_ratio" ? scale : shapeHeightIn.value,
+        objectAlign: shapeAlignSel.value,
+        rotationDeg: shapeRotIn.value,
+        cornerRadiusPct: shapeRadiusIn.value,
+        fillEnabled: fillBlock.enableCb.checked,
+        fillColor: sanitizeShapeColor(fillBlock.hex.value || fillBlock.picker.value) || "#000000",
+        fillOpacityPct: fillBlock.opacityIn.value,
+        strokeEnabled: strokeBlock.enableCb.checked,
+        strokeColor: sanitizeShapeColor(strokeBlock.hex.value || strokeBlock.picker.value) || "#000000",
+        strokeOpacityPct: strokeBlock.opacityIn.value,
+        strokeWidthPx: shapeStrokeWidthIn.value,
+        linkHref: sanitizeNavUrl(shapeLinkIn.value),
+        ...readPlacementFromPanel(),
+      });
+    }
+
+    fillBlock.enableCb.addEventListener("change", () => {
+      syncShapeColorBlock(fillBlock, fillBlock.enableCb.checked);
+      bumpCellEditor();
+    });
+    strokeBlock.enableCb.addEventListener("change", () => {
+      syncShapeColorBlock(strokeBlock, strokeBlock.enableCb.checked);
+      syncShapePanelVisibility();
+      bumpCellEditor();
+    });
+    fillBlock.picker.addEventListener("input", () => {
+      fillBlock.hex.value = fillBlock.picker.value;
+      bumpCellEditor();
+    });
+    strokeBlock.picker.addEventListener("input", () => {
+      strokeBlock.hex.value = strokeBlock.picker.value;
+      bumpCellEditor();
+    });
+    [fillBlock.hex, strokeBlock.hex, fillBlock.opacityIn, strokeBlock.opacityIn].forEach((el) => {
+      el.addEventListener("input", bumpCellEditor);
+    });
+    shapeScaleIn.addEventListener("input", () => {
+      if (shapeSizeModeSel.value === "keep_ratio") {
+        const scale = clampFrameCellScalePct(shapeScaleIn.value, 40);
+        shapeWidthIn.value = String(scale);
+        shapeHeightIn.value = String(scale);
+      }
+      bumpCellEditor();
+    });
+    [
+      shapeKindSel,
+      shapeAlignSel,
+      shapeWidthIn,
+      shapeHeightIn,
+      shapeRotIn,
+      shapeRadiusIn,
+      shapeStrokeWidthIn,
+    ].forEach((el) => {
+      el.addEventListener("input", bumpCellEditor);
+      el.addEventListener("change", bumpCellEditor);
+    });
+    shapeSizeModeSel.addEventListener("change", () => {
+      applyShapeSizeModeSwitch();
+      bumpCellEditor();
+    });
+    shapeKindSel.addEventListener("change", syncShapePanelVisibility);
 
     const imagePathWrap = document.createElement("div");
     imagePathWrap.className = "staging-frame-panel__image-path";
@@ -600,10 +1159,11 @@ export function createFrameCellStagingUi(deps) {
       fitSel.value = im.objectFit || "contain";
       alignSel.value = im.objectAlign || "center";
       maxWIn.value = im.maxWidth || "";
-      scaleIn.value = String(Math.min(250, Math.max(25, Number(im.scalePct) || 100)));
+      scaleIn.value = String(clampFrameCellScalePct(im.scalePct, 100));
       const link = typeof im.linkHref === "string" ? im.linkHref : "";
       imageLinkIn.value = link;
       fillSitePageSelect(imagePageSel, imageSitePages, link);
+      fillPlacementFromStyle(im);
     }
 
     function applyTextStyleInputs(ts) {
@@ -627,13 +1187,25 @@ export function createFrameCellStagingUi(deps) {
     }
 
     function syncTextFieldsVisibility() {
-      textWrap.hidden = typeSel.value !== "text";
-      imageWrap.hidden = typeSel.value !== "image";
+      const ct =
+        typeSel.value === "stack" && stackEditor ? stackEditor.getActiveLayerType() : typeSel.value;
+      textWrap.hidden = ct !== "text";
+      imageWrap.hidden = ct !== "image";
+      shapeWrap.hidden = ct !== "shape";
+      syncPlacementWrapVisibility(ct);
     }
 
+    /** @type {ReturnType<typeof mountStackLayerControls> | null} */
+    let stackEditor = null;
+
     function syncBodyFieldVisibility() {
-      const ct = typeSel.value;
-      bodyLab.hidden = ct === "empty" || ct === "text" || ct === "image";
+      const stackMode = typeSel.value === "stack";
+      if (stackEditor) {
+        stackEditor.setActive(stackMode);
+      }
+      const ct =
+        stackMode && stackEditor ? stackEditor.getActiveLayerType() : typeSel.value;
+      bodyLab.hidden = stackMode || ct === "empty" || ct === "text" || ct === "image" || ct === "shape";
       bodyBlocksHost.hidden = ct !== "text";
       imagePathWrap.hidden = ct !== "image";
       if (ct === "empty") {
@@ -689,6 +1261,26 @@ export function createFrameCellStagingUi(deps) {
 
     function buildDraftCellFromForm() {
       const ct = typeSel.value;
+      const cellId = parseInt(cid, 10);
+      const prev = cellDrafts.get(String(idx));
+      if (ct === "stack" && stackEditor) {
+        return {
+          id: cellId,
+          contentType: "stack",
+          body: stackEditor.getBody(),
+          layers: stackEditor.getLayers(),
+          cellRole: roleIn.value,
+          cellPadding: readCellPaddingFromPanel(
+            cellPadUniformIn,
+            cellPadTopIn,
+            cellPadRightIn,
+            cellPadBottomIn,
+            cellPadLeftIn,
+            cellPadSidesExpanded,
+          ),
+          textStyle: null,
+        };
+      }
       let body = "";
       if (ct === "empty") {
         body = "";
@@ -699,8 +1291,6 @@ export function createFrameCellStagingUi(deps) {
       } else {
         body = ta.value;
       }
-      const cellId = parseInt(cid, 10);
-      const prev = cellDrafts.get(String(idx));
       const prevTextPad =
         prev && prev.textStyle && typeof prev.textStyle.padding === "string" ? prev.textStyle.padding : "";
       /** @type {object} */
@@ -740,9 +1330,13 @@ export function createFrameCellStagingUi(deps) {
           objectFit: fitSel.value,
           objectAlign: alignSel.value,
           maxWidth: maxWIn.value.trim(),
-          scalePct: Math.min(250, Math.max(25, scale)),
+          scalePct: clampFrameCellScalePct(scale, 100),
           linkHref: sanitizeNavUrl(imageLinkIn.value),
+          ...readPlacementFromPanel(),
         };
+      }
+      if (ct === "shape") {
+        cell.shapeStyle = readShapeStyleFromForm();
       }
       return cell;
     }
@@ -778,10 +1372,49 @@ export function createFrameCellStagingUi(deps) {
       }
     };
 
+    stackEditor = mountStackLayerControls({
+      buildLayerFromForm: () => {
+        const savedType = typeSel.value;
+        if (savedType === "stack" && stackEditor) {
+          typeSel.value = stackEditor.getActiveLayerType();
+        }
+        const layerCell = buildDraftCellFromForm();
+        typeSel.value = savedType;
+        return normalizeStackLayer({
+          type: layerCell.contentType,
+          body: layerCell.body,
+          textStyle: layerCell.textStyle,
+          imageStyle: layerCell.imageStyle,
+          shapeStyle: layerCell.shapeStyle,
+        });
+      },
+      fillFormFromLayer: (layer) => {
+        fillFormFromCellDraft({
+          contentType: layer.type,
+          body: layer.body,
+          textStyle: layer.textStyle,
+          imageStyle: layer.imageStyle,
+          shapeStyle: layer.shapeStyle,
+          cellRole: roleIn.value,
+          cellPadding: cellDrafts.get(String(idx))?.cellPadding,
+        });
+        syncBodyFieldVisibility();
+      },
+      onChange: () => bumpCellEditor(),
+    });
+
     function fillFormFromCellDraft(cell) {
       let ct = (cell.contentType || "empty").toLowerCase();
       if (ct === "table") {
         ct = "html";
+      }
+      if (ct === "stack" && stackEditor) {
+        typeSel.value = "stack";
+        roleIn.value = cell.cellRole != null ? String(cell.cellRole) : "";
+        syncCellPadInputsFromDraft(cell);
+        stackEditor.loadFromCell(cell);
+        syncBodyFieldVisibility();
+        return;
       }
       typeSel.value = ct;
       roleIn.value = cell.cellRole != null ? String(cell.cellRole) : "";
@@ -790,6 +1423,9 @@ export function createFrameCellStagingUi(deps) {
         ta.value = "";
         applyImagePathInputs(cell.body != null ? String(cell.body) : "");
         applyImageStyleInputs(cell.imageStyle || readImageStyleFromMount());
+      } else if (ct === "shape") {
+        ta.value = "";
+        applyShapeStyleInputs(cell.shapeStyle || readShapeStyleFromMount() || DEFAULT_SHAPE_STYLE);
       } else if (ct === "text") {
         ta.value = "";
         const ts = cell.textStyle || readTextStyleFromMount();
@@ -815,12 +1451,14 @@ export function createFrameCellStagingUi(deps) {
       });
     } else {
       let ct = (mount.dataset.frameContentType || "empty").toLowerCase();
-      if (!["empty", "html", "image", "text"].includes(ct)) {
+      if (!["empty", "html", "image", "text", "shape", "stack"].includes(ct)) {
         ct = mount.querySelector("img.site-frame__cell-image")
           ? "image"
-          : mount.querySelector(".site-frame__cell-text")
-            ? "text"
-            : "empty";
+          : mount.querySelector("svg.site-frame__cell-shape")
+            ? "shape"
+            : mount.querySelector(".site-frame__cell-text")
+              ? "text"
+              : "empty";
       }
       fillFormFromCellDraft({ contentType: ct, body: "", cellRole: mount.dataset.frameCellRole || "" });
     }
@@ -829,6 +1467,17 @@ export function createFrameCellStagingUi(deps) {
     syncBodyFieldVisibility();
 
     const wireBump = () => bumpCellEditor();
+
+    placementResetBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      clearPlacementOnSelectedCell();
+    });
+    placementCenterBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      applyPlacementToSelectedCell({ placementLeftPct: 50, placementTopPct: 50 });
+    });
+    placementPosXIn.addEventListener("input", wireBump);
+    placementPosYIn.addEventListener("input", wireBump);
 
     repopulateImageSelect("");
     imagePathSel.addEventListener("change", () => {
@@ -866,6 +1515,26 @@ export function createFrameCellStagingUi(deps) {
       bumpCellEditor();
     });
     typeSel.addEventListener("change", () => {
+      if (typeSel.value === "stack" && stackEditor) {
+        const prev = cellDrafts.get(String(idx));
+        if (prev && String(prev.contentType || "").toLowerCase() === "stack") {
+          stackEditor.loadFromCell(prev);
+        } else {
+          const saved = typeSel.value;
+          typeSel.value =
+            prev && prev.contentType && prev.contentType !== "stack"
+              ? String(prev.contentType)
+              : "text";
+          stackEditor.seedFromSingleLayer(buildDraftCellFromForm());
+          typeSel.value = "stack";
+        }
+      }
+      if (typeSel.value === "shape") {
+        const prevCt = (cellDrafts.get(String(idx))?.contentType || "").toLowerCase();
+        if (prevCt !== "shape") {
+          applyShapeStyleInputs(DEFAULT_SHAPE_STYLE);
+        }
+      }
       syncBodyFieldVisibility();
       bumpCellEditor();
     });
@@ -923,19 +1592,33 @@ export function createFrameCellStagingUi(deps) {
 
     function buildCellPatchPayload() {
       const draft = buildDraftCellFromForm();
+      const ct = String(draft.contentType || "empty")
+        .trim()
+        .toLowerCase();
       /** @type {Record<string, unknown>} */
       const payload = {
         id: draft.id,
-        contentType: draft.contentType,
+        contentType: ct === "table" ? "html" : ct,
         body: draft.body,
         cellRole: draft.cellRole,
         cellPadding: cellPaddingForApi(draft.cellPadding),
       };
-      if (draft.textStyle) {
+      if (ct === "text" && draft.textStyle) {
         payload.textStyle = draft.textStyle;
       }
-      if (draft.imageStyle) {
+      if (ct === "image" && draft.imageStyle) {
         payload.imageStyle = draft.imageStyle;
+      }
+      if (ct === "shape") {
+        payload.shapeStyle = normalizeShapeStyle(
+          draft.shapeStyle && typeof draft.shapeStyle === "object"
+            ? draft.shapeStyle
+            : readShapeStyleFromForm(),
+        );
+        payload.body = "";
+      }
+      if (ct === "stack" && Array.isArray(draft.layers)) {
+        payload.layers = draft.layers;
       }
       return payload;
     }
@@ -948,9 +1631,21 @@ export function createFrameCellStagingUi(deps) {
           mode: "cors",
           body: JSON.stringify(buildCellPatchPayload()),
         })
-          .then((r) => {
+          .then(async (r) => {
             if (!r.ok) {
-              throw new Error("HTTP " + r.status);
+              const errText = await r.text().catch(() => "");
+              let msg = "HTTP " + r.status;
+              try {
+                const parsed = JSON.parse(errText);
+                if (parsed && parsed.error) {
+                  msg = String(parsed.error);
+                }
+              } catch (_e) {
+                if (errText.trim()) {
+                  msg = errText.trim().slice(0, 240);
+                }
+              }
+              throw new Error(msg);
             }
             return r.json();
           })
@@ -965,6 +1660,9 @@ export function createFrameCellStagingUi(deps) {
               }
               updateLayoutTypoBindingForCell(ixKey, cell);
               fillFormFromCellDraft(cell);
+              if (typeof onCellSaved === "function") {
+                onCellSaved(cell);
+              }
             }
             updateChipDirtyState();
             return out;
@@ -975,12 +1673,17 @@ export function createFrameCellStagingUi(deps) {
     inner.appendChild(cellQuickRow);
     inner.appendChild(roleLab);
     inner.appendChild(typeSel);
+    if (stackEditor) {
+      inner.appendChild(stackEditor.element);
+    }
     inner.appendChild(cellPadLab);
+    inner.appendChild(placementWrap);
     inner.appendChild(bodyBlocksHost);
     inner.appendChild(bodyLab);
     inner.appendChild(imagePathWrap);
     inner.appendChild(textWrap);
     inner.appendChild(imageWrap);
+    inner.appendChild(shapeWrap);
     cellEditorHost.appendChild(inner);
   }
 
@@ -1039,6 +1742,14 @@ export function createFrameCellStagingUi(deps) {
     root.removeEventListener("click", onFrameRootClick);
   }
 
+  const teardownPlacementDrag = mountFrameCellPlacementDrag({
+    root,
+    getSelectedCellIndex: () => selectedCellIndex,
+    onPlacementChange: (placement) => {
+      applyPlacementToSelectedCell(placement);
+    },
+  });
+
   return {
     refreshEditor,
     refreshAssetImagePickers: () => {
@@ -1046,9 +1757,15 @@ export function createFrameCellStagingUi(deps) {
         refreshImagePickerFn();
       }
     },
+    flushActiveCellDraft: () => {
+      if (typeof flushActiveCellDraft === "function") {
+        flushActiveCellDraft();
+      }
+    },
     selectCell,
     wireMountClick,
     teardownMountClick,
+    teardownPlacementDrag,
     getSelectedCellIndex: () => selectedCellIndex,
     clearSelection: () => {
       selectedCellIndex = null;

@@ -6,6 +6,7 @@ Bind 127.0.0.1 only. Run: python3 server/dev_api.py
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -128,15 +129,436 @@ def _sanitize_frame_image_body(raw: object) -> str:
     return norm
 
 
-def _row_to_page(row: sqlite3.Row | None) -> dict | None:
+def _page_file_slug(name: str) -> str:
+    s = re.sub(r"[^a-z0-9_-]+", "-", name.strip().lower()).strip("-")
+    return s or "page"
+
+
+def _scaffold_page_html(page_name: str) -> str | None:
+    """Create a blank pages/{slug}.html when missing. Returns relative path or None."""
+    slug = _page_file_slug(page_name)
+    if slug in ("index", "home"):
+        return None
+    pages_dir = os.path.join(REPO_ROOT, "pages")
+    os.makedirs(pages_dir, exist_ok=True)
+    path = os.path.join(pages_dir, f"{slug}.html")
+    if os.path.isfile(path):
+        return None
+    title = html.escape(re.sub(r"[-_]+", " ", page_name.strip()).title() or slug.title())
+    slug_class = html.escape(slug, quote=True)
+    content = f"""<!doctype html>
+<html lang="en" data-official-live="false">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="icon" href="../assets/images/tomato.png" type="image/png">
+  <title>{title} | Calvin Van</title>
+  <meta name="description" content="">
+  <script src="../lib/staging/staging.js"></script>
+  <script src="../lib/staging/site-structure-pages.js"></script>
+  <link rel="stylesheet" href="../style/local-asset-fonts.css">
+  <link rel="stylesheet" href="../style/main.css">
+  <link rel="stylesheet" href="../lib/staging/staging.css">
+</head>
+<body class="page-{slug_class}">
+  <main class="page-main page-main--{slug_class}"></main>
+</body>
+</html>
+"""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    return f"pages/{slug}.html"
+
+
+def _reserved_page_name(name: str) -> bool:
+    return name.strip().lower() in ("index", "home")
+
+
+def _page_html_abs_path(page_name: str) -> str | None:
+    slug = page_name.strip().lower()
+    if slug == "index":
+        return os.path.join(REPO_ROOT, "index.html")
+    if slug == "home":
+        return None
+    path = os.path.join(REPO_ROOT, "pages", f"{_page_file_slug(page_name)}.html")
+    return path if os.path.isfile(path) else None
+
+
+def _page_html_rel_path(page_name: str) -> str:
+    if page_name.strip().lower() == "index":
+        return "index.html"
+    return f"pages/{_page_file_slug(page_name)}.html"
+
+
+def _update_site_frame_page_attr(html_content: str, page_name: str) -> str:
+    esc = html.escape(page_name.strip(), quote=True)
+    if re.search(r"data-site-frame-page\s*=", html_content):
+        return re.sub(
+            r'(data-site-frame-page\s*=\s*")[^"]*(")',
+            rf"\g<1>{esc}\g<2>",
+            html_content,
+            count=1,
+        )
+    return html_content
+
+
+def _update_page_name_in_html(html_content: str, page_name: str) -> str:
+    """Point frame mounts / site-frame.js at the new registry page name."""
+    name = page_name.strip()
+    out = _update_site_frame_page_attr(html_content, name)
+    esc = html.escape(name, quote=True)
+    return re.sub(
+        r'(mountSiteFramePage\s*\(\s*\{[^}]*\bpageName\s*:\s*")[^"]+(")',
+        rf"\g<1>{esc}\g<2>",
+        out,
+        count=1,
+    )
+
+
+def _rewrite_root_html_for_pages_dir(html_content: str) -> str:
+    """When index.html is copied into pages/, fix asset and intra-site paths."""
+
+    def _attr_repl(match: re.Match[str]) -> str:
+        attr, quote, val = match.group(1), match.group(2), match.group(3)
+        if not val:
+            return match.group(0)
+        low = val.lower()
+        if low.startswith(("#", "http://", "https://", "//", "mailto:", "tel:", "data:", "../")):
+            return match.group(0)
+        if low.startswith("pages/"):
+            return f"{attr}={quote}{val[6:]}{quote}"
+        return f"{attr}={quote}../{val}{quote}"
+
+    out = re.sub(
+        r'\b(href|src)=(["\'])([^"\']*)\2',
+        _attr_repl,
+        html_content,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(
+        r'from\s+(["\'])\./js/',
+        r"from \1../js/",
+        out,
+        flags=re.IGNORECASE,
+    )
+
+
+def _duplicate_page_html(src_name: str, dst_name: str) -> str | None:
+    """Copy the source HTML file to pages/{slug}.html (never a blank scaffold)."""
+    dst_slug = _page_file_slug(dst_name)
+    if dst_slug in ("index", "home"):
+        return None
+    pages_dir = os.path.join(REPO_ROOT, "pages")
+    os.makedirs(pages_dir, exist_ok=True)
+    dst_path = os.path.join(pages_dir, f"{dst_slug}.html")
+    if os.path.isfile(dst_path):
+        return None
+    src_path = _page_html_abs_path(src_name)
+    if not src_path or not os.path.isfile(src_path):
+        return _scaffold_page_html(dst_name)
+    with open(src_path, encoding="utf-8") as fh:
+        content = fh.read()
+    if src_name.strip().lower() == "index":
+        content = _rewrite_root_html_for_pages_dir(content)
+    content = _update_page_name_in_html(content, dst_name)
+    with open(dst_path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    return f"pages/{dst_slug}.html"
+
+
+def _rename_page_html(old_name: str, new_name: str) -> bool:
+    if _reserved_page_name(new_name) or old_name.strip().lower() == "index":
+        return False
+    old_path = _page_html_abs_path(old_name)
+    if not old_path:
+        return True
+    new_slug = _page_file_slug(new_name)
+    new_path = os.path.join(REPO_ROOT, "pages", f"{new_slug}.html")
+    with open(old_path, encoding="utf-8") as fh:
+        content = _update_site_frame_page_attr(fh.read(), new_name)
+    if os.path.normpath(old_path) == os.path.normpath(new_path):
+        with open(old_path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        return True
+    if os.path.isfile(new_path):
+        return False
+    os.makedirs(os.path.dirname(new_path), exist_ok=True)
+    with open(new_path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    if os.path.normpath(old_path) != os.path.normpath(new_path):
+        os.remove(old_path)
+    return True
+
+
+def _delete_page_html(page_name: str) -> bool:
+    if page_name.strip().lower() == "index":
+        return False
+    path = _page_html_abs_path(page_name)
+    if not path:
+        return True
+    if os.path.normpath(path) == os.path.normpath(os.path.join(REPO_ROOT, "index.html")):
+        return False
+    if os.path.isfile(path):
+        os.remove(path)
+    return True
+
+
+def _next_duplicate_page_name(con: sqlite3.Connection, src_name: str) -> str:
+    base = src_name.strip()
+    for i in range(1, 200):
+        candidate = f"{base}-copy" if i == 1 else f"{base}-copy-{i}"
+        if _reserved_page_name(candidate):
+            continue
+        if not con.execute("SELECT 1 FROM page WHERE name = ?", (candidate,)).fetchone():
+            return candidate
+    raise ValueError("could not allocate duplicate page name")
+
+
+def _copy_subrow(
+    con: sqlite3.Connection,
+    table: str,
+    pk_col: str,
+    old_pk: int,
+    new_pk: int,
+) -> None:
+    row = con.execute(f"SELECT * FROM {table} WHERE {pk_col} = ?", (old_pk,)).fetchone()
+    if not row:
+        return
+    cols = [k for k in row.keys() if k != pk_col]
+    names = ", ".join(cols)
+    ph = ", ".join("?" for _ in cols)
+    vals = [row[c] for c in cols]
+    con.execute(
+        f"INSERT INTO {table} ({pk_col}, {names}) VALUES (?, {ph})",
+        [new_pk, *vals],
+    )
+
+
+def _copy_page_layout(con: sqlite3.Connection, src_pid: int, dst_pid: int) -> None:
+    frow = con.execute(
+        "SELECT font_size, font_family FROM font WHERE page_id = ?",
+        (src_pid,),
+    ).fetchone()
+    if frow:
+        con.execute(
+            "INSERT INTO font (page_id, font_size, font_family) VALUES (?, ?, ?)",
+            (dst_pid, frow["font_size"], frow["font_family"]),
+        )
+    for grow in con.execute("SELECT * FROM gallery WHERE page_id = ?", (src_pid,)).fetchall():
+        cols = [k for k in grow.keys() if k not in ("id", "page_id")]
+        names = ", ".join(cols)
+        ph = ", ".join("?" for _ in cols)
+        vals = [grow[c] for c in cols]
+        con.execute(
+            f"INSERT INTO gallery (page_id, {names}) VALUES (?, {ph})",
+            [dst_pid, *vals],
+        )
+    fr = con.execute("SELECT id FROM frame WHERE page_id = ?", (src_pid,)).fetchone()
+    if not fr:
+        return
+    con.execute(
+        """INSERT INTO frame (
+             page_id, column_count, row_count, label, grid_gap, notes,
+             default_text_font_family, default_text_font_size
+           )
+           SELECT ?, column_count, row_count, label, grid_gap, notes,
+             default_text_font_family, default_text_font_size
+           FROM frame WHERE page_id = ?""",
+        (dst_pid, src_pid),
+    )
+    old_fid = int(fr["id"])
+    new_fid = int(
+        con.execute("SELECT id FROM frame WHERE page_id = ?", (dst_pid,)).fetchone()["id"],
+    )
+    cells = con.execute(
+        "SELECT * FROM frame_cell WHERE frame_id = ? ORDER BY cell_index",
+        (old_fid,),
+    ).fetchall()
+    for cell in cells:
+        cell_cols = [k for k in cell.keys() if k not in ("id", "frame_id")]
+        names = ", ".join(cell_cols)
+        ph = ", ".join("?" for _ in cell_cols)
+        vals = [cell[c] for c in cell_cols]
+        con.execute(
+            f"INSERT INTO frame_cell (frame_id, {names}) VALUES (?, {ph})",
+            [new_fid, *vals],
+        )
+        new_cid = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
+        old_cid = int(cell["id"])
+        _copy_subrow(con, "frame_cell_text", "frame_cell_id", old_cid, new_cid)
+        _copy_subrow(con, "frame_cell_image", "frame_cell_id", old_cid, new_cid)
+        _copy_subrow(con, "frame_cell_shape", "frame_cell_id", old_cid, new_cid)
+
+
+def _get_home_page_id(con: sqlite3.Connection) -> int | None:
+    try:
+        row = con.execute("SELECT home_page_id FROM site_settings WHERE id = 1").fetchone()
+        if row is not None and row["home_page_id"] is not None:
+            return int(row["home_page_id"])
+    except sqlite3.OperationalError:
+        pass
+    return None
+
+
+def _set_home_page_id(con: sqlite3.Connection, page_id: int | None) -> None:
+    con.execute(
+        """
+        INSERT INTO site_settings (id, home_page_id) VALUES (1, ?)
+        ON CONFLICT(id) DO UPDATE SET home_page_id = excluded.home_page_id
+        """,
+        (page_id,),
+    )
+
+
+def _row_to_page_group(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None
+    keys = row.keys()
     return {
-        "id": row["id"],
-        "name": row["name"],
+        "id": int(row["id"]),
+        "label": str(row["label"] if "label" in keys else ""),
+        "sortOrder": int(row["sort_order"] if "sort_order" in keys else 0),
+    }
+
+
+def _row_to_page(row: sqlite3.Row | None, home_page_id: int | None = None) -> dict | None:
+    if row is None:
+        return None
+    keys = row.keys()
+    out = {
+        "id": int(row["id"]),
+        "name": str(row["name"]),
         "header": row["header"],
         "footer": row["footer"],
+        "groupId": int(row["group_id"]) if "group_id" in keys and row["group_id"] is not None else None,
+        "sortOrder": int(row["sort_order"] if "sort_order" in keys else 0),
     }
+    out["isHome"] = str(row["name"]).strip().lower() == "index"
+    return out
+
+
+def _pages_ordered(con: sqlite3.Connection, home_page_id: int | None) -> list[dict]:
+    """Pages in registry order: groups (by sort_order), then pages within each, then ungrouped."""
+    home = home_page_id
+    pages_out: list[dict] = []
+    try:
+        groups = [
+            _row_to_page_group(r)
+            for r in con.execute("SELECT * FROM page_group ORDER BY sort_order, id")
+        ]
+    except sqlite3.OperationalError:
+        groups = []
+    for g in groups:
+        if not g:
+            continue
+        gid = g["id"]
+        rows = con.execute(
+            "SELECT * FROM page WHERE group_id = ? ORDER BY sort_order, name",
+            (gid,),
+        ).fetchall()
+        for r in rows:
+            p = _row_to_page(r, home)
+            if p:
+                pages_out.append(p)
+    try:
+        ungrouped = con.execute(
+            "SELECT * FROM page WHERE group_id IS NULL ORDER BY sort_order, name",
+        ).fetchall()
+    except sqlite3.OperationalError:
+        ungrouped = con.execute("SELECT * FROM page ORDER BY name").fetchall()
+    for r in ungrouped:
+        p = _row_to_page(r, home)
+        if p:
+            pages_out.append(p)
+    return pages_out
+
+
+def _registry_payload(con: sqlite3.Connection) -> dict:
+    home_id = _get_home_page_id(con)
+    home_name = None
+    if home_id is not None:
+        row = con.execute("SELECT name FROM page WHERE id = ?", (home_id,)).fetchone()
+        if row:
+            home_name = str(row["name"])
+    try:
+        groups = [
+            _row_to_page_group(r)
+            for r in con.execute("SELECT * FROM page_group ORDER BY sort_order, id").fetchall()
+        ]
+        groups = [g for g in groups if g]
+    except sqlite3.OperationalError:
+        groups = []
+    pages = _pages_ordered(con, home_id)
+    galleries: list = []
+    frames: list = []
+    for p in pages:
+        pid = p["id"]
+        for r in con.execute(
+            "SELECT * FROM gallery WHERE page_id = ? ORDER BY gallery_key",
+            (pid,),
+        ):
+            gal = _row_to_gallery(r)
+            if gal:
+                galleries.append(gal)
+        fr = con.execute("SELECT * FROM frame WHERE page_id = ?", (pid,)).fetchone()
+        if fr:
+            frame = _row_to_frame(fr)
+            if frame:
+                frames.append(frame)
+    return {
+        "homePageId": home_id,
+        "homePageName": home_name,
+        "groups": groups,
+        "pages": pages,
+        "galleries": galleries,
+        "frames": frames,
+    }
+
+
+def _sanitize_group_label(raw: object) -> str:
+    s = _truncate(str(raw or "").strip(), 120)
+    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", s)[:120]
+
+
+def _apply_pages_order(con: sqlite3.Connection, data: dict) -> None:
+    groups_in = data.get("groups")
+    if isinstance(groups_in, list):
+        for item in groups_in:
+            if not isinstance(item, dict):
+                continue
+            gid = int(item.get("id") or 0)
+            if not gid:
+                continue
+            sort_order = int(item.get("sortOrder", item.get("sort_order", 0)) or 0)
+            label = item.get("label")
+            if label is not None:
+                con.execute(
+                    "UPDATE page_group SET sort_order = ?, label = ? WHERE id = ?",
+                    (sort_order, _sanitize_group_label(label), gid),
+                )
+            else:
+                con.execute(
+                    "UPDATE page_group SET sort_order = ? WHERE id = ?",
+                    (sort_order, gid),
+                )
+    pages_in = data.get("pages")
+    if isinstance(pages_in, list):
+        for item in pages_in:
+            if not isinstance(item, dict):
+                continue
+            pid = int(item.get("id") or 0)
+            if not pid:
+                continue
+            sort_order = int(item.get("sortOrder", item.get("sort_order", 0)) or 0)
+            group_id = item.get("groupId", item.get("group_id"))
+            if group_id is None or group_id == "":
+                gid_sql = None
+            else:
+                gid_sql = int(group_id)
+            con.execute(
+                "UPDATE page SET sort_order = ?, group_id = ? WHERE id = ?",
+                (sort_order, gid_sql, pid),
+            )
 
 
 def _row_to_gallery(row: sqlite3.Row | None) -> dict | None:
@@ -347,7 +769,7 @@ def _sanitize_image_scale_pct(raw: object) -> int:
         n = int(raw if raw is not None else 100)
     except (TypeError, ValueError):
         n = 100
-    return max(25, min(250, n))
+    return max(5, min(250, n))
 
 
 _OBJECT_FIT_ALLOWED = frozenset({"contain", "cover", "fill", "scale-down", "none"})
@@ -379,6 +801,174 @@ def _sanitize_object_align(raw: object) -> str:
 def _sanitize_max_width_css(raw: object) -> str:
     s = _truncate(str(raw or "").strip(), 40)
     return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f<>;{}\\]", "", s)[:40]
+
+
+_SHAPE_KIND_ALLOWED = frozenset({"square", "triangle", "circle"})
+
+
+def _sanitize_shape_color(raw: object) -> str:
+    s = _truncate(str(raw or "").strip(), 120)
+    if not s or s.lower() in ("inherit", "currentcolor"):
+        return ""
+    low = s.lower()
+    if low.startswith("javascript:") or low.startswith("data:"):
+        return ""
+    if re.fullmatch(r"#[0-9a-f]{3,8}", s, flags=re.IGNORECASE):
+        return s
+    if re.fullmatch(r"(rgb|rgba|hsl|hsla)\([^)]+\)", s, flags=re.IGNORECASE):
+        return s
+    return ""
+
+
+def _clamp_int(raw: object, lo: int, hi: int, default: int) -> int:
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, n))
+
+
+def _parse_placement_pct(raw: object) -> float | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not (v == v):  # NaN
+        return None
+    return max(0.0, min(100.0, round(v, 1)))
+
+
+def _placement_from_style(ins: dict) -> tuple[float | None, float | None]:
+    left = _parse_placement_pct(ins.get("placementLeftPct", ins.get("placement_left_pct")))
+    top = _parse_placement_pct(ins.get("placementTopPct", ins.get("placement_top_pct")))
+    if left is None or top is None:
+        return None, None
+    return left, top
+
+
+def _placement_on_style_dict(style: dict, left: float | None, top: float | None) -> dict:
+    if left is not None and top is not None:
+        style["placementLeftPct"] = left
+        style["placementTopPct"] = top
+    else:
+        style["placementLeftPct"] = None
+        style["placementTopPct"] = None
+    return style
+
+
+def _placement_from_row(row: sqlite3.Row | None, keys: set[str]) -> tuple[float | None, float | None]:
+    if row is None:
+        return None, None
+    if "placement_left_pct" not in keys or "placement_top_pct" not in keys:
+        return None, None
+    left = row["placement_left_pct"]
+    top = row["placement_top_pct"]
+    if left is None or top is None:
+        return None, None
+    return _parse_placement_pct(left), _parse_placement_pct(top)
+
+
+def _sanitize_shape_style(raw: object) -> dict:
+    if not isinstance(raw, dict):
+        return {}
+    kind = str(raw.get("shapeKind") or raw.get("shape_kind") or "square").strip().lower()
+    if kind not in _SHAPE_KIND_ALLOWED:
+        kind = "square"
+    fill_color = _sanitize_shape_color(raw.get("fillColor", raw.get("fill_color"))) or "#000000"
+    stroke_color = _sanitize_shape_color(raw.get("strokeColor", raw.get("stroke_color"))) or "#000000"
+    fill_enabled = raw.get("fillEnabled", raw.get("fill_enabled"))
+    if fill_enabled is False or fill_enabled == 0:
+        fill_on = False
+    else:
+        fill_on = fill_enabled is not False
+    stroke_enabled = bool(raw.get("strokeEnabled", raw.get("stroke_enabled")))
+    mode_raw = str(raw.get("sizeMode") or raw.get("size_mode") or "keep_ratio").strip().lower()
+    size_mode = "stretch_grid" if mode_raw == "stretch_grid" else "keep_ratio"
+    width_pct = _sanitize_image_scale_pct(raw.get("widthPct", raw.get("width_pct") or 40))
+    height_pct = _sanitize_image_scale_pct(raw.get("heightPct", raw.get("height_pct") or 40))
+    if size_mode == "keep_ratio":
+        scale = max(width_pct, height_pct)
+        width_pct = scale
+        height_pct = scale
+    st = {
+        "shapeKind": kind,
+        "sizeMode": size_mode,
+        "widthPct": width_pct,
+        "heightPct": height_pct,
+        "objectAlign": _sanitize_object_align(raw.get("objectAlign", raw.get("object_align"))),
+        "rotationDeg": _clamp_int(raw.get("rotationDeg", raw.get("rotation_deg")), 0, 360, 0),
+        "cornerRadiusPct": _clamp_int(
+            raw.get("cornerRadiusPct", raw.get("corner_radius_pct")),
+            0,
+            50,
+            0,
+        ),
+        "fillEnabled": fill_on,
+        "fillColor": fill_color,
+        "fillOpacityPct": _clamp_int(
+            raw.get("fillOpacityPct", raw.get("fill_opacity_pct")),
+            0,
+            100,
+            100,
+        ),
+        "strokeEnabled": stroke_enabled,
+        "strokeColor": stroke_color,
+        "strokeOpacityPct": _clamp_int(
+            raw.get("strokeOpacityPct", raw.get("stroke_opacity_pct")),
+            0,
+            100,
+            100,
+        ),
+        "strokeWidthPx": _clamp_int(
+            raw.get("strokeWidthPx", raw.get("stroke_width_px")),
+            0,
+            48,
+            2,
+        ),
+        "linkHref": _sanitize_nav_url(str(raw.get("linkHref", "") or raw.get("link_href", "") or "")),
+    }
+    left, top = _placement_from_style(raw)
+    return _placement_on_style_dict(st, left, top)
+
+
+def _shape_style_from_db_row(shape_row: sqlite3.Row | None) -> dict:
+    if shape_row is None:
+        return _sanitize_shape_style({})
+    srk = shape_row.keys()
+    raw_shape = {
+        "shapeKind": str(shape_row["shape_kind"] if "shape_kind" in srk else "square"),
+        "sizeMode": str(shape_row["size_mode"] if "size_mode" in srk else "keep_ratio"),
+        "widthPct": int(shape_row["width_pct"] if "width_pct" in srk else 40),
+        "heightPct": int(shape_row["height_pct"] if "height_pct" in srk else 40),
+        "objectAlign": str(shape_row["object_align"] if "object_align" in srk else "center"),
+        "rotationDeg": int(shape_row["rotation_deg"] if "rotation_deg" in srk else 0),
+        "cornerRadiusPct": int(
+            shape_row["corner_radius_pct"] if "corner_radius_pct" in srk else 0
+        ),
+        "fillEnabled": bool(int(shape_row["fill_enabled"] if "fill_enabled" in srk else 1)),
+        "fillColor": str(shape_row["fill_color"] if "fill_color" in srk else "#000000"),
+        "fillOpacityPct": int(
+            shape_row["fill_opacity_pct"] if "fill_opacity_pct" in srk else 100
+        ),
+        "strokeEnabled": bool(
+            int(shape_row["stroke_enabled"] if "stroke_enabled" in srk else 0)
+        ),
+        "strokeColor": str(shape_row["stroke_color"] if "stroke_color" in srk else "#000000"),
+        "strokeOpacityPct": int(
+            shape_row["stroke_opacity_pct"] if "stroke_opacity_pct" in srk else 100
+        ),
+        "strokeWidthPx": int(shape_row["stroke_width_px"] if "stroke_width_px" in srk else 2),
+        "linkHref": _sanitize_nav_url(
+            str(shape_row["link_href"] if "link_href" in srk else "")
+        ),
+    }
+    pl, pt = _placement_from_row(shape_row, set(srk))
+    if pl is not None and pt is not None:
+        raw_shape["placementLeftPct"] = pl
+        raw_shape["placementTopPct"] = pt
+    return _sanitize_shape_style(raw_shape)
 
 
 def _sanitize_cell_role(raw: str) -> str:
@@ -550,10 +1140,81 @@ def _body_blocks_from_db_row(text_row: sqlite3.Row | None, body: str) -> list[di
     return _sanitize_body_blocks([], body, nav_url, nav_label)[0]
 
 
+def _sanitize_stack_layers(raw: object) -> list[dict]:
+    """Inline text/image/shape layers for content_type stack (stored in frame_cell.body JSON)."""
+    if isinstance(raw, dict) and isinstance(raw.get("layers"), list):
+        raw = raw["layers"]
+    if not isinstance(raw, list):
+        return []
+    out: list[dict] = []
+    for item in raw[:24]:
+        if not isinstance(item, dict):
+            continue
+        lt = str(item.get("type") or item.get("contentType") or "").strip().lower()
+        if lt not in ("text", "image", "shape"):
+            continue
+        layer: dict = {"type": lt}
+        if lt == "image":
+            try:
+                layer["body"] = _sanitize_frame_image_body(item.get("body"))
+            except ValueError:
+                layer["body"] = ""
+            is_data = item.get("imageStyle") if isinstance(item.get("imageStyle"), dict) else {}
+            layer["imageStyle"] = {
+                "objectFit": str(is_data.get("objectFit") or "contain"),
+                "objectAlign": str(is_data.get("objectAlign") or "center"),
+                "maxWidth": str(is_data.get("maxWidth") or ""),
+                "scalePct": int(is_data.get("scalePct") or 100),
+                "linkHref": _sanitize_nav_url(str(is_data.get("linkHref") or "")),
+            }
+        elif lt == "shape":
+            layer["body"] = ""
+            ins = item.get("shapeStyle") if isinstance(item.get("shapeStyle"), dict) else {}
+            layer["shapeStyle"] = _sanitize_shape_style(ins)
+        else:
+            layer["body"] = str(item.get("body") or "")
+            ts = item.get("textStyle") if isinstance(item.get("textStyle"), dict) else {}
+            body_blocks_raw = ts.get("bodyBlocks")
+            blocks, plain_body = _sanitize_body_blocks(
+                body_blocks_raw if body_blocks_raw is not None else [],
+                layer["body"],
+                "",
+                "",
+            )
+            layer["body"] = plain_body
+            try:
+                fs = int(ts.get("fontSize", 16) or 16)
+            except (TypeError, ValueError):
+                fs = 16
+            try:
+                lh = int(ts.get("lineHeightPct", 100) or 100)
+            except (TypeError, ValueError):
+                lh = 100
+            layer["textStyle"] = {
+                "fontFamily": _sanitize_font_family(str(ts.get("fontFamily") or "")),
+                "fontSize": max(8, min(288, fs)),
+                "lineHeightPct": max(50, min(250, lh)),
+                "padding": _sanitize_padding_css(str(ts.get("padding") or "")),
+                "navUrl": "",
+                "navLabel": "",
+                "bodyBlocks": blocks,
+                "linkStyle": _sanitize_link_style(
+                    ts.get("linkStyle") if isinstance(ts.get("linkStyle"), dict) else {},
+                ),
+            }
+        out.append(layer)
+    return out
+
+
+def _stack_layers_body_json(layers: list[dict]) -> str:
+    return json.dumps({"layers": layers}, separators=(",", ":"), ensure_ascii=False)
+
+
 def _row_to_frame_cell(
     row: sqlite3.Row | None,
     text_row: sqlite3.Row | None = None,
     image_row: sqlite3.Row | None = None,
+    shape_row: sqlite3.Row | None = None,
 ) -> dict | None:
     if row is None:
         return None
@@ -604,14 +1265,22 @@ def _row_to_frame_cell(
     elif ct == "image":
         out["textStyle"] = None
         if image_row is not None:
-            irk = image_row.keys()
-            out["imageStyle"] = {
+            irk = set(image_row.keys())
+            img_style = {
                 "objectFit": str(image_row["object_fit"] if "object_fit" in irk else "contain"),
                 "objectAlign": str(image_row["object_align"] if "object_align" in irk else "center"),
                 "maxWidth": str(image_row["max_width"] if "max_width" in irk else ""),
                 "scalePct": int(image_row["scale_pct"] if "scale_pct" in irk else 100),
                 "linkHref": _sanitize_nav_url(str(image_row["link_href"] if "link_href" in irk else "")),
             }
+            pl, pt = _placement_from_row(image_row, irk)
+            if pl is not None and pt is not None:
+                img_style["placementLeftPct"] = pl
+                img_style["placementTopPct"] = pt
+            else:
+                img_style["placementLeftPct"] = None
+                img_style["placementTopPct"] = None
+            out["imageStyle"] = img_style
         else:
             out["imageStyle"] = {
                 "objectFit": "contain",
@@ -619,7 +1288,27 @@ def _row_to_frame_cell(
                 "maxWidth": "",
                 "scalePct": 100,
                 "linkHref": "",
+                "placementLeftPct": None,
+                "placementTopPct": None,
             }
+    elif ct == "shape":
+        out["textStyle"] = None
+        out["imageStyle"] = None
+        out["shapeStyle"] = _shape_style_from_db_row(shape_row)
+    elif ct == "stack":
+        out["textStyle"] = None
+        out["imageStyle"] = None
+        out["shapeStyle"] = None
+        try:
+            parsed = json.loads(body_out) if body_out.strip() else {}
+            if isinstance(parsed, dict) and isinstance(parsed.get("layers"), list):
+                out["layers"] = _sanitize_stack_layers(parsed.get("layers"))
+            elif isinstance(parsed, list):
+                out["layers"] = _sanitize_stack_layers(parsed)
+            else:
+                out["layers"] = []
+        except json.JSONDecodeError:
+            out["layers"] = []
     else:
         out["textStyle"] = None
     return out
@@ -700,12 +1389,87 @@ def _sync_frame_cell_image(con: sqlite3.Connection, cell_id: int, data: dict) ->
     mw = _sanitize_max_width_css(ins.get("maxWidth", ""))
     scale = _sanitize_image_scale_pct(ins.get("scalePct", 100))
     link_href = _sanitize_nav_url(str(ins.get("linkHref", "") or ins.get("link_href", "") or ""))
+    pl, pt = _placement_from_style(ins)
+    img_cols = _table_columns(con, "frame_cell_image")
+    img_col_names = [
+        "frame_cell_id",
+        "object_fit",
+        "object_align",
+        "max_width",
+        "scale_pct",
+        "link_href",
+    ]
+    img_vals: list = [cell_id, ofit, oal, mw, scale, link_href]
+    if "placement_left_pct" in img_cols and "placement_top_pct" in img_cols:
+        img_col_names.extend(["placement_left_pct", "placement_top_pct"])
+        img_vals.extend([pl, pt])
+    ph = ", ".join("?" for _ in img_vals)
     con.execute(
-        """
-        INSERT INTO frame_cell_image (frame_cell_id, object_fit, object_align, max_width, scale_pct, link_href)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (cell_id, ofit, oal, mw, scale, link_href),
+        f"INSERT INTO frame_cell_image ({', '.join(img_col_names)}) VALUES ({ph})",
+        img_vals,
+    )
+
+
+def _sync_frame_cell_shape(con: sqlite3.Connection, cell_id: int, data: dict) -> None:
+    row = con.execute("SELECT content_type FROM frame_cell WHERE id = ?", (cell_id,)).fetchone()
+    if not row:
+        return
+    final_ct = str(row[0] or "empty")
+    touch = any(k in data for k in ("contentType", "shapeStyle"))
+    if final_ct != "shape":
+        con.execute("DELETE FROM frame_cell_shape WHERE frame_cell_id = ?", (cell_id,))
+        return
+    if not touch:
+        return
+    con.execute("DELETE FROM frame_cell_shape WHERE frame_cell_id = ?", (cell_id,))
+    ins = data.get("shapeStyle") if isinstance(data.get("shapeStyle"), dict) else {}
+    st = _sanitize_shape_style(ins)
+    pl, pt = _placement_from_style(ins)
+    shape_cols = _table_columns(con, "frame_cell_shape")
+    shape_col_names = [
+        "frame_cell_id",
+        "shape_kind",
+        "width_pct",
+        "height_pct",
+        "object_align",
+        "rotation_deg",
+        "corner_radius_pct",
+        "fill_enabled",
+        "fill_color",
+        "fill_opacity_pct",
+        "stroke_enabled",
+        "stroke_color",
+        "stroke_opacity_pct",
+        "stroke_width_px",
+        "link_href",
+    ]
+    shape_vals: list = [
+        cell_id,
+        st["shapeKind"],
+        st["widthPct"],
+        st["heightPct"],
+        st["objectAlign"],
+        st["rotationDeg"],
+        st["cornerRadiusPct"],
+        1 if st["fillEnabled"] else 0,
+        st["fillColor"],
+        st["fillOpacityPct"],
+        1 if st["strokeEnabled"] else 0,
+        st["strokeColor"],
+        st["strokeOpacityPct"],
+        st["strokeWidthPx"],
+        st["linkHref"],
+    ]
+    if "size_mode" in shape_cols:
+        shape_col_names.insert(4, "size_mode")
+        shape_vals.insert(4, st["sizeMode"])
+    if "placement_left_pct" in shape_cols and "placement_top_pct" in shape_cols:
+        shape_col_names.extend(["placement_left_pct", "placement_top_pct"])
+        shape_vals.extend([pl, pt])
+    ph = ", ".join("?" for _ in shape_vals)
+    con.execute(
+        f"INSERT INTO frame_cell_shape ({', '.join(shape_col_names)}) VALUES ({ph})",
+        shape_vals,
     )
 
 
@@ -721,6 +1485,7 @@ def _frame_cells_with_text(con: sqlite3.Connection, fid: int) -> list[dict]:
     ids = [int(r["id"]) for r in rows]
     by_id: dict[int, sqlite3.Row] = {}
     by_img: dict[int, sqlite3.Row] = {}
+    by_shape: dict[int, sqlite3.Row] = {}
     if ids:
         ph = ",".join("?" * len(ids))
         try:
@@ -733,7 +1498,20 @@ def _frame_cells_with_text(con: sqlite3.Connection, fid: int) -> list[dict]:
                 by_img[int(ir["frame_cell_id"])] = ir
         except sqlite3.OperationalError:
             pass
-    return [_row_to_frame_cell(r, by_id.get(int(r["id"])), by_img.get(int(r["id"]))) for r in rows]
+        try:
+            for sr in con.execute(f"SELECT * FROM frame_cell_shape WHERE frame_cell_id IN ({ph})", ids):
+                by_shape[int(sr["frame_cell_id"])] = sr
+        except sqlite3.OperationalError:
+            pass
+    return [
+        _row_to_frame_cell(
+            r,
+            by_id.get(int(r["id"])),
+            by_img.get(int(r["id"])),
+            by_shape.get(int(r["id"])),
+        )
+        for r in rows
+    ]
 
 
 def _connect() -> sqlite3.Connection:
@@ -815,8 +1593,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 con = _connect()
                 try:
-                    cur = con.execute("SELECT * FROM page ORDER BY name")
-                    pages = [_row_to_page(r) for r in cur.fetchall()]
+                    home_id = _get_home_page_id(con)
+                    pages = _pages_ordered(con, home_id)
                     self._send(200, json.dumps({"pages": pages}).encode())
                 finally:
                     con.close()
@@ -851,27 +1629,31 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, json.dumps({"error": str(e)}).encode())
             return
 
+        if parsed.path == "/api/site":
+            try:
+                con = _connect()
+                try:
+                    payload = _registry_payload(con)
+                    self._send(
+                        200,
+                        json.dumps(
+                            {
+                                "homePageId": payload["homePageId"],
+                                "homePageName": payload["homePageName"],
+                            }
+                        ).encode(),
+                    )
+                finally:
+                    con.close()
+            except OSError as e:
+                self._send(500, json.dumps({"error": str(e)}).encode())
+            return
+
         if parsed.path == "/api/registry":
             try:
                 con = _connect()
                 try:
-                    pages = [_row_to_page(r) for r in con.execute("SELECT * FROM page ORDER BY name")]
-                    galleries: list = []
-                    frames: list = []
-                    for p in pages:
-                        pid = p["id"]
-                        for r in con.execute(
-                            "SELECT * FROM gallery WHERE page_id = ? ORDER BY gallery_key",
-                            (pid,),
-                        ):
-                            galleries.append(_row_to_gallery(r))
-                        fr = con.execute("SELECT * FROM frame WHERE page_id = ?", (pid,)).fetchone()
-                        if fr:
-                            frames.append(_row_to_frame(fr))
-                    self._send(
-                        200,
-                        json.dumps({"pages": pages, "galleries": galleries, "frames": frames}).encode(),
-                    )
+                    self._send(200, json.dumps(_registry_payload(con)).encode())
                 finally:
                     con.close()
             except OSError as e:
@@ -959,6 +1741,103 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, json.dumps({"error": str(e)}).encode())
             return
 
+        if parsed.path == "/api/page/scaffold-html":
+            try:
+                data = self._read_json()
+                name = str(data.get("name") or "").strip()
+                if not name and data.get("id") is not None:
+                    con = _connect()
+                    try:
+                        row = con.execute(
+                            "SELECT name FROM page WHERE id = ?",
+                            (int(data.get("id")),),
+                        ).fetchone()
+                        if row:
+                            name = str(row["name"])
+                    finally:
+                        con.close()
+                if not name:
+                    self._send(400, json.dumps({"error": "name or id required"}).encode())
+                    return
+                html_path = _scaffold_page_html(name)
+                if not html_path:
+                    slug = _page_file_slug(name)
+                    rel = f"pages/{slug}.html"
+                    disk = os.path.join(REPO_ROOT, rel)
+                    if os.path.isfile(disk):
+                        self._send(200, json.dumps({"htmlPath": rel, "htmlExists": True}).encode())
+                        return
+                    self._send(
+                        400,
+                        json.dumps(
+                            {"error": "could not create HTML (reserved name or invalid page name)"},
+                        ).encode(),
+                    )
+                    return
+                self._send(
+                    200,
+                    json.dumps({"htmlCreated": True, "htmlPath": html_path}).encode(),
+                )
+            except (json.JSONDecodeError, OSError, ValueError) as e:
+                self._send(400, json.dumps({"error": str(e)}).encode())
+            return
+
+        if parsed.path == "/api/page/duplicate":
+            try:
+                data = self._read_json()
+                src_id = int(data.get("id") or data.get("sourcePageId") or 0)
+                if not src_id:
+                    self._send(400, json.dumps({"error": "id required"}).encode())
+                    return
+                con = _connect()
+                try:
+                    src = con.execute("SELECT * FROM page WHERE id = ?", (src_id,)).fetchone()
+                    if not src:
+                        self._send(404, json.dumps({"error": "page not found"}).encode())
+                        return
+                    src_name = str(src["name"])
+                    new_name = _next_duplicate_page_name(con, src_name)
+                    max_sort = con.execute(
+                        "SELECT COALESCE(MAX(sort_order), 0) FROM page WHERE group_id IS NULL",
+                    ).fetchone()[0]
+                    con.execute(
+                        "INSERT INTO page (name, header, footer, sort_order, group_id) VALUES (?, ?, ?, ?, ?)",
+                        (
+                            new_name,
+                            int(src["header"]),
+                            int(src["footer"]),
+                            int(max_sort or 0) + 10,
+                            src["group_id"],
+                        ),
+                    )
+                    dst_id = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
+                    _copy_page_layout(con, int(src["id"]), dst_id)
+                    con.commit()
+                    dst = con.execute("SELECT * FROM page WHERE id = ?", (dst_id,)).fetchone()
+                    html_path = _duplicate_page_html(src_name, new_name)
+                    payload: dict = {
+                        "page": _row_to_page(dst, _get_home_page_id(con)),
+                        "sourcePageId": src_id,
+                        "sourcePageName": src_name,
+                    }
+                    if html_path:
+                        payload["htmlCreated"] = True
+                        payload["htmlPath"] = html_path
+                    else:
+                        payload["htmlWarning"] = (
+                            f"Registry duplicated as {new_name!r} but pages/{_page_file_slug(new_name)}.html was not written."
+                        )
+                    self._send(201, json.dumps(payload).encode())
+                except sqlite3.IntegrityError:
+                    self._send(409, json.dumps({"error": "duplicate name"}).encode())
+                except ValueError as e:
+                    self._send(400, json.dumps({"error": str(e)}).encode())
+                finally:
+                    con.close()
+            except (json.JSONDecodeError, OSError, sqlite3.Error) as e:
+                self._send(400, json.dumps({"error": str(e)}).encode())
+            return
+
         if parsed.path == "/api/page":
             try:
                 data = self._read_json()
@@ -966,20 +1845,72 @@ class Handler(BaseHTTPRequestHandler):
                 if not name:
                     self._send(400, json.dumps({"error": "name required"}).encode())
                     return
+                if _reserved_page_name(name):
+                    self._send(
+                        400,
+                        json.dumps({"error": 'reserved page name (use "index" for homepage)'}).encode(),
+                    )
+                    return
                 header = 1 if data.get("header", True) else 0
                 footer = 1 if data.get("footer", True) else 0
                 con = _connect()
                 try:
+                    max_sort = con.execute(
+                        "SELECT COALESCE(MAX(sort_order), 0) FROM page WHERE group_id IS NULL",
+                    ).fetchone()[0]
                     con.execute(
-                        "INSERT INTO page (name, header, footer) VALUES (?, ?, ?)",
-                        (name, header, footer),
+                        "INSERT INTO page (name, header, footer, sort_order) VALUES (?, ?, ?, ?)",
+                        (name, header, footer, int(max_sort or 0) + 10),
                     )
                     con.commit()
                     cur = con.execute("SELECT * FROM page WHERE name = ?", (name,))
                     row = cur.fetchone()
-                    self._send(201, json.dumps({"page": _row_to_page(row)}).encode())
+                    html_path = _scaffold_page_html(name)
+                    if not html_path:
+                        slug = _page_file_slug(name)
+                        disk = os.path.join(REPO_ROOT, "pages", f"{slug}.html")
+                        if os.path.isfile(disk):
+                            html_path = f"pages/{slug}.html"
+                    payload: dict = {"page": _row_to_page(row, _get_home_page_id(con))}
+                    if html_path:
+                        payload["htmlCreated"] = True
+                        payload["htmlPath"] = html_path
+                    else:
+                        payload["htmlWarning"] = (
+                            f"SQLite row created but pages/{_page_file_slug(name)}.html was not written "
+                            "(reserved name or restart npm run dev:api)."
+                        )
+                    self._send(201, json.dumps(payload).encode())
                 except sqlite3.IntegrityError:
                     self._send(409, json.dumps({"error": "duplicate name"}).encode())
+                finally:
+                    con.close()
+            except (json.JSONDecodeError, OSError, sqlite3.Error) as e:
+                self._send(400, json.dumps({"error": str(e)}).encode())
+            return
+
+        if parsed.path == "/api/page-group":
+            try:
+                data = self._read_json()
+                label = _sanitize_group_label(data.get("label") or "Group")
+                if not label:
+                    label = "Group"
+                con = _connect()
+                try:
+                    max_sort = con.execute(
+                        "SELECT COALESCE(MAX(sort_order), 0) FROM page_group",
+                    ).fetchone()[0]
+                    con.execute(
+                        "INSERT INTO page_group (label, sort_order) VALUES (?, ?)",
+                        (label, int(max_sort or 0) + 10),
+                    )
+                    con.commit()
+                    gid = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
+                    row = con.execute("SELECT * FROM page_group WHERE id = ?", (gid,)).fetchone()
+                    self._send(
+                        201,
+                        json.dumps({"group": _row_to_page_group(row)}).encode(),
+                    )
                 finally:
                     con.close()
             except (json.JSONDecodeError, OSError, sqlite3.Error) as e:
@@ -1107,6 +2038,95 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, json.dumps({"error": "invalid json"}).encode())
             return
 
+        if parsed.path == "/api/site":
+            home_raw = data.get("homePageId", data.get("home_page_id"))
+            try:
+                con = _connect()
+                try:
+                    if home_raw is None:
+                        self._send(400, json.dumps({"error": "homePageId required"}).encode())
+                        return
+                    if home_raw is False or home_raw == "":
+                        _set_home_page_id(con, None)
+                    else:
+                        pid = int(home_raw)
+                        row = con.execute("SELECT id FROM page WHERE id = ?", (pid,)).fetchone()
+                        if not row:
+                            self._send(404, json.dumps({"error": "page not found"}).encode())
+                            return
+                        _set_home_page_id(con, pid)
+                    con.commit()
+                    payload = _registry_payload(con)
+                    self._send(
+                        200,
+                        json.dumps(
+                            {
+                                "homePageId": payload["homePageId"],
+                                "homePageName": payload["homePageName"],
+                            }
+                        ).encode(),
+                    )
+                finally:
+                    con.close()
+            except (OSError, sqlite3.Error, ValueError) as e:
+                self._send(400, json.dumps({"error": str(e)}).encode())
+            return
+
+        if parsed.path == "/api/pages/order":
+            try:
+                con = _connect()
+                try:
+                    _apply_pages_order(con, data)
+                    con.commit()
+                    self._send(200, json.dumps(_registry_payload(con)).encode())
+                finally:
+                    con.close()
+            except (OSError, sqlite3.Error, ValueError) as e:
+                self._send(400, json.dumps({"error": str(e)}).encode())
+            return
+
+        if parsed.path == "/api/page-group":
+            gid = int(data.get("id") or 0)
+            if not gid:
+                self._send(400, json.dumps({"error": "id required"}).encode())
+                return
+            try:
+                con = _connect()
+                try:
+                    cur = con.execute("SELECT * FROM page_group WHERE id = ?", (gid,))
+                    if not cur.fetchone():
+                        self._send(404, json.dumps({"error": "page group not found"}).encode())
+                        return
+                    fields = []
+                    vals: list = []
+                    if "label" in data:
+                        fields.append("label = ?")
+                        vals.append(_sanitize_group_label(data.get("label")))
+                    if "sortOrder" in data or "sort_order" in data:
+                        fields.append("sort_order = ?")
+                        vals.append(
+                            int(data.get("sortOrder", data.get("sort_order", 0)) or 0),
+                        )
+                    if not fields:
+                        self._send(400, json.dumps({"error": "no fields"}).encode())
+                        return
+                    vals.append(gid)
+                    con.execute(
+                        f"UPDATE page_group SET {', '.join(fields)} WHERE id = ?",
+                        vals,
+                    )
+                    con.commit()
+                    cur = con.execute("SELECT * FROM page_group WHERE id = ?", (gid,))
+                    self._send(
+                        200,
+                        json.dumps({"group": _row_to_page_group(cur.fetchone())}).encode(),
+                    )
+                finally:
+                    con.close()
+            except (OSError, sqlite3.Error, ValueError) as e:
+                self._send(400, json.dumps({"error": str(e)}).encode())
+            return
+
         if parsed.path == "/api/gallery":
             gid = int(data.get("id") or 0)
             if not gid:
@@ -1180,14 +2200,33 @@ class Handler(BaseHTTPRequestHandler):
                 con = _connect()
                 try:
                     cur = con.execute("SELECT * FROM page WHERE id = ?", (pid,))
-                    if not cur.fetchone():
+                    row = cur.fetchone()
+                    if not row:
                         self._send(404, json.dumps({"error": "page not found"}).encode())
                         return
+                    old_name = str(row["name"])
                     fields = []
                     vals: list = []
+                    new_name = old_name
                     if "name" in data:
+                        new_name = str(data["name"]).strip()
+                        if not new_name:
+                            self._send(400, json.dumps({"error": "name cannot be empty"}).encode())
+                            return
+                        if _reserved_page_name(new_name) and new_name.lower() != old_name.lower():
+                            self._send(
+                                400,
+                                json.dumps({"error": "reserved page name"}).encode(),
+                            )
+                            return
+                        if old_name.strip().lower() == "index" and new_name.lower() != "index":
+                            self._send(
+                                400,
+                                json.dumps({"error": "homepage page name cannot be changed"}).encode(),
+                            )
+                            return
                         fields.append("name = ?")
-                        vals.append(str(data["name"]).strip())
+                        vals.append(new_name)
                     if "header" in data:
                         fields.append("header = ?")
                         vals.append(1 if data["header"] else 0)
@@ -1200,8 +2239,23 @@ class Handler(BaseHTTPRequestHandler):
                     vals.append(pid)
                     con.execute(f"UPDATE page SET {', '.join(fields)} WHERE id = ?", vals)
                     con.commit()
+                    if new_name != old_name:
+                        if not _rename_page_html(old_name, new_name):
+                            con.execute("UPDATE page SET name = ? WHERE id = ?", (old_name, pid))
+                            con.commit()
+                            self._send(
+                                409,
+                                json.dumps(
+                                    {"error": f"could not rename {_page_html_rel_path(old_name)}"},
+                                ).encode(),
+                            )
+                            return
                     cur = con.execute("SELECT * FROM page WHERE id = ?", (pid,))
-                    self._send(200, json.dumps({"page": _row_to_page(cur.fetchone())}).encode())
+                    home_id = _get_home_page_id(con)
+                    self._send(
+                        200,
+                        json.dumps({"page": _row_to_page(cur.fetchone(), home_id)}).encode(),
+                    )
                 except sqlite3.IntegrityError:
                     self._send(409, json.dumps({"error": "duplicate name"}).encode())
                 finally:
@@ -1280,12 +2334,18 @@ class Handler(BaseHTTPRequestHandler):
                     vals: list = []
                     if "contentType" in data:
                         ct = str(data.get("contentType") or "empty").strip().lower()
-                        if ct not in ("empty", "html", "image", "table", "text"):
+                        if ct not in ("empty", "html", "image", "table", "text", "shape", "stack"):
                             self._send(400, json.dumps({"error": "invalid contentType"}).encode())
                             return
                         fields.append("content_type = ?")
                         vals.append(ct)
-                    if "body" in data:
+                    if "layers" in data:
+                        layers = _sanitize_stack_layers(data.get("layers"))
+                        fields.append("content_type = ?")
+                        vals.append("stack")
+                        fields.append("body = ?")
+                        vals.append(_stack_layers_body_json(layers))
+                    if "body" in data and "layers" not in data:
                         effective_ct = (
                             str(data.get("contentType") or "").strip().lower()
                             if "contentType" in data
@@ -1311,6 +2371,7 @@ class Handler(BaseHTTPRequestHandler):
                         if (
                             "textStyle" not in data
                             and "imageStyle" not in data
+                            and "shapeStyle" not in data
                             and "cellPadding" not in data
                         ):
                             self._send(400, json.dumps({"error": "no fields"}).encode())
@@ -1329,10 +2390,23 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     _sync_frame_cell_text(con, cid, data)
                     _sync_frame_cell_image(con, cid, data)
+                    _sync_frame_cell_shape(con, cid, data)
+                    if str(
+                        con.execute(
+                            "SELECT content_type FROM frame_cell WHERE id = ?",
+                            (cid,),
+                        ).fetchone()[0]
+                        or ""
+                    ) == "shape":
+                        con.execute(
+                            "UPDATE frame_cell SET body = '' WHERE id = ?",
+                            (cid,),
+                        )
                     con.commit()
                     crow = con.execute("SELECT * FROM frame_cell WHERE id = ?", (cid,)).fetchone()
                     tr = None
                     ir = None
+                    sr = None
                     if crow and str(crow["content_type"] or "") == "text":
                         tr = con.execute(
                             "SELECT * FROM frame_cell_text WHERE frame_cell_id = ?",
@@ -1343,7 +2417,12 @@ class Handler(BaseHTTPRequestHandler):
                             "SELECT * FROM frame_cell_image WHERE frame_cell_id = ?",
                             (cid,),
                         ).fetchone()
-                    self._send(200, json.dumps({"cell": _row_to_frame_cell(crow, tr, ir)}).encode())
+                    if crow and str(crow["content_type"] or "") == "shape":
+                        sr = con.execute(
+                            "SELECT * FROM frame_cell_shape WHERE frame_cell_id = ?",
+                            (cid,),
+                        ).fetchone()
+                    self._send(200, json.dumps({"cell": _row_to_frame_cell(crow, tr, ir, sr)}).encode())
                 finally:
                     con.close()
             except (OSError, sqlite3.Error, ValueError) as e:
@@ -1442,7 +2521,35 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 con = _connect()
                 try:
+                    row = con.execute("SELECT name FROM page WHERE id = ?", (pid,)).fetchone()
+                    if not row:
+                        self._send(404, json.dumps({"error": "page not found"}).encode())
+                        return
+                    page_name = str(row["name"])
+                    if page_name.strip().lower() == "index":
+                        self._send(
+                            403,
+                            json.dumps({"error": "homepage cannot be deleted"}).encode(),
+                        )
+                        return
+                    home_id = _get_home_page_id(con)
+                    if home_id == pid:
+                        _set_home_page_id(con, None)
                     con.execute("DELETE FROM page WHERE id = ?", (pid,))
+                    con.commit()
+                    _delete_page_html(page_name)
+                    self._send(204, b"")
+                finally:
+                    con.close()
+                return
+            if parsed.path == "/api/page-group":
+                gid = int((qs.get("id") or ["0"])[0])
+                if not gid:
+                    self._send(400, json.dumps({"error": "id required"}).encode())
+                    return
+                con = _connect()
+                try:
+                    con.execute("DELETE FROM page_group WHERE id = ?", (gid,))
                     con.commit()
                     self._send(204, b"")
                 finally:
@@ -1468,10 +2575,38 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, json.dumps({"error": "not found"}).encode())
 
 
+def _ensure_db_migrated() -> None:
+    script = os.path.join(REPO_ROOT, "lib", "db", "migrate_schema.py")
+    if not os.path.isfile(script):
+        return
+    try:
+        proc = subprocess.run(
+            [sys.executable, script],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        if proc.returncode != 0:
+            sys.stderr.write(
+                "customdev migrate failed (exit %s): %s\n"
+                % (proc.returncode, (proc.stderr or proc.stdout or "").strip())
+            )
+            return
+        for line in (proc.stdout or "").splitlines():
+            line = line.strip()
+            if line and "added column" in line or "rebuilt table" in line or "created table" in line:
+                sys.stderr.write("customdev %s\n" % line.lstrip())
+    except (OSError, subprocess.TimeoutExpired) as e:
+        sys.stderr.write("customdev migrate warning: %s\n" % e)
+
+
 def main() -> None:
     if not os.path.isfile(DB_PATH):
         sys.stderr.write("Database not found: %s\nRun: python3 lib/db/init_db.py\n" % DB_PATH)
         sys.exit(1)
+    _ensure_db_migrated()
     server = HTTPServer((HOST, PORT), Handler)
     print("customdev layout API  http://%s:%s  (DB: %s)" % (HOST, PORT, DB_PATH))
     server.serve_forever()

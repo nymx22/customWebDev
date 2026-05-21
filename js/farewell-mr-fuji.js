@@ -5,7 +5,6 @@
 import { createDraggableGallery } from "./web-dev-base/gallery-core/gallery-core.js";
 import {
   forceLandscapeMobile as forceLandscape,
-  mountProjectBackButton,
   mountProjectPageFooter,
   mountProjectPageHeader,
 } from "./web-dev-base/project-page.js";
@@ -83,7 +82,6 @@ export async function initFarewellMrFuji() {
       ? { stickyFooterHeight: STICKY_PROJECT_FOOTER_HEIGHT }
       : {}),
   });
-  mountProjectBackButton();
 
   const root = document.getElementById(GALLERY_ROOT_ID);
   if (!root) {

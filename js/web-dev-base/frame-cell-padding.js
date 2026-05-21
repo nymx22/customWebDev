@@ -2,10 +2,74 @@
  * Frame cell mount padding: legacy CSS string or JSON `{ topPct, rightPct, bottomPct, leftPct }` (0–50).
  */
 
+import { normalizeShapeStyle } from "./frame-cell-shape.js";
+
 /** @typedef {{ type: 'css', css: string }} CssCellPadding */
 /** @typedef {{ type: 'pct', topPct: number, rightPct: number, bottomPct: number, leftPct: number }} PctCellPadding */
 
 const PCT_MAX = 50;
+
+/** @type {WeakMap<HTMLElement, ResizeObserver>} */
+const cellPaddingObservers = new WeakMap();
+
+/**
+ * @param {HTMLElement} mount
+ */
+function disconnectCellPaddingObserver(mount) {
+  const ro = cellPaddingObservers.get(mount);
+  if (ro) {
+    ro.disconnect();
+    cellPaddingObservers.delete(mount);
+  }
+}
+
+/**
+ * @param {HTMLElement} mount
+ * @param {{ topPct: number, rightPct: number, bottomPct: number, leftPct: number }} spec
+ */
+function applyGridCellPadding(mount, spec) {
+  const { topPct, rightPct, bottomPct, leftPct } = spec;
+  const frameRoot =
+    typeof mount.closest === "function" ? mount.closest("[data-site-frame-page]") : null;
+
+  const applyMountFallback = () => {
+    mount.style.padding = `${topPct}% ${rightPct}% ${bottomPct}% ${leftPct}%`;
+  };
+
+  const applyFromFrame = () => {
+    if (!mount.isConnected) {
+      disconnectCellPaddingObserver(mount);
+      return;
+    }
+    if (!frameRoot) {
+      applyMountFallback();
+      return;
+    }
+    const rect = frameRoot.getBoundingClientRect();
+    const fw = rect.width;
+    const fh = rect.height;
+    if (fw < 1 || fh < 1) {
+      applyMountFallback();
+      return;
+    }
+    const t = (fh * topPct) / 100;
+    const r = (fw * rightPct) / 100;
+    const b = (fh * bottomPct) / 100;
+    const l = (fw * leftPct) / 100;
+    mount.style.padding = `${t}px ${r}px ${b}px ${l}px`;
+  };
+
+  disconnectCellPaddingObserver(mount);
+  applyFromFrame();
+  if (frameRoot) {
+    const ro = new ResizeObserver(applyFromFrame);
+    ro.observe(frameRoot);
+    cellPaddingObservers.set(mount, ro);
+    if (frameRoot.getBoundingClientRect().width < 1) {
+      requestAnimationFrame(applyFromFrame);
+    }
+  }
+}
 
 /**
  * @param {unknown} n
@@ -124,6 +188,7 @@ export function applyCellPaddingStyles(mount, cellPadding, opts) {
   const pageOverrideClass = !opts || opts.pageOverrideClass !== false;
   mount.style.removeProperty("padding");
   delete mount.dataset.frameCellPadding;
+  disconnectCellPaddingObserver(mount);
 
   const active = cellPaddingIsActive(cellPadding);
   if (pageOverrideClass) {
@@ -145,7 +210,7 @@ export function applyCellPaddingStyles(mount, cellPadding, opts) {
   }
 
   const { topPct, rightPct, bottomPct, leftPct } = spec;
-  mount.style.padding = `${topPct}% ${rightPct}% ${bottomPct}% ${leftPct}%`;
+  applyGridCellPadding(mount, { topPct, rightPct, bottomPct, leftPct });
   try {
     mount.dataset.frameCellPadding = encodeURIComponent(
       JSON.stringify({ topPct, rightPct, bottomPct, leftPct }),
@@ -248,6 +313,17 @@ export function cellDraftToPatchPayload(draft) {
   }
   if (payload.contentType === "image" && draft.imageStyle && typeof draft.imageStyle === "object") {
     payload.imageStyle = draft.imageStyle;
+  }
+  if (payload.contentType === "shape") {
+    payload.shapeStyle = normalizeShapeStyle(
+      draft.shapeStyle && typeof draft.shapeStyle === "object" ? draft.shapeStyle : {},
+    );
+  }
+  if (payload.contentType === "stack" && Array.isArray(draft.layers)) {
+    payload.layers = draft.layers;
+    if (draft.body != null && String(draft.body).trim()) {
+      payload.body = String(draft.body);
+    }
   }
   return payload;
 }

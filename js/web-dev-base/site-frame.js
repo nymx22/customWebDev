@@ -1,5 +1,5 @@
 /**
- * Site **frame**: a page-owned grid of cells (plain **text** with optional link + typography, HTML, image URL, tab text table, or empty).
+ * Site **frame**: grid cells (text, HTML, image, vector shape, tab text table, or empty).
  * Use `createDraggableGallery` only for strip/zoom **media** galleries (images / video-audio style playback).
  *
  * Staging UI for the frame grid is built by **`mountFrameStagingTestingGui`** in `staging-gui-settings.js`.
@@ -11,13 +11,65 @@
 import { resolveAssetImageSrc } from "./frame-asset-images.js";
 import {
   applyCellPaddingStyles,
-  cellPaddingIsActive,
-  syncCellPaddingOverrideClass,
 } from "./frame-cell-padding.js";
+import {
+  applyFramePlacementToWrap,
+  clearFramePlacementStyles,
+  placementFromStyle,
+  placementIsActive,
+  removePlacedLayersForCell,
+} from "./frame-cell-placement.js";
 import { renderBodyBlocksIntoParagraph, resolveBodyBlocks, sanitizeNavUrl } from "./frame-text-blocks.js";
 import { applyTextLinkStyleToWrap, normalizeTextLinkStyle } from "./frame-text-link-style.js";
-import { fetchBakedFrame } from "./layout-baked.js";
+import { fetchBakedFrame, resolveHomePageName } from "./layout-baked.js";
+
+/**
+ * Canonical frame page slug: `data-site-frame-page` on the root, then options.pageName.
+ * Only the site home route (`index`) may remap via `/api/site` homePageName.
+ * @param {HTMLElement | null} root
+ * @param {string} optionsPageName
+ * @returns {Promise<string>}
+ */
+/**
+ * @param {HTMLElement} root
+ * @param {string} optionsPageName
+ * @param {string} resolvedName
+ * @returns {boolean}
+ */
+function fromDomMismatch(root, optionsPageName, resolvedName) {
+  const fromDom = String(root.getAttribute("data-site-frame-page") || "").trim();
+  if (!fromDom || !optionsPageName) {
+    return false;
+  }
+  return fromDom !== optionsPageName && resolvedName === fromDom;
+}
+
+/**
+ * @param {HTMLElement | null} root
+ * @param {string} optionsPageName
+ * @returns {Promise<string>}
+ */
+async function resolveFramePageName(root, optionsPageName) {
+  const fromDom =
+    root instanceof HTMLElement ? String(root.getAttribute("data-site-frame-page") || "").trim() : "";
+  const raw = fromDom || String(optionsPageName || "").trim();
+  if (!raw) {
+    return "";
+  }
+  if (raw === "index") {
+    return resolveHomePageName("index");
+  }
+  return raw;
+}
 import { applyGridGapStyles } from "./frame-grid-gap.js";
+import { applyImageGridDimensions } from "./frame-cell-image.js";
+import { clampFrameCellScalePct } from "./frame-cell-scale.js";
+import {
+  createShapeSvgElement,
+  normalizeShapeStyle,
+  SHAPE_ALIGN_TO_FLEX,
+} from "./frame-cell-shape.js";
+import { applyStackLayersToMount, parseStackLayersFromCell } from "./frame-cell-layers.js";
 import { buildTabTextTable } from "./frame-tab-table.js";
 import { STAGING_FRAME_SETTINGS_EVENT, mountFrameStagingTestingGui } from "./staging-gui-settings.js";
 
@@ -33,7 +85,10 @@ function resolveFrameApiBase() {
     return String(m.getAttribute("content")).trim().replace(/\/$/, "");
   }
   try {
-    if (document.documentElement.classList.contains("official-live")) {
+    if (
+      document.documentElement.classList.contains("official-live") &&
+      !document.documentElement.classList.contains("staging")
+    ) {
       return null;
     }
   } catch (_e) {
@@ -44,10 +99,7 @@ function resolveFrameApiBase() {
 
 function isHtmlStaging() {
   try {
-    return (
-      document.documentElement.classList.contains("staging") &&
-      !document.documentElement.classList.contains("official-live")
-    );
+    return document.documentElement.classList.contains("staging");
   } catch (_e) {
     return false;
   }
@@ -211,8 +263,17 @@ function applyCellToMount(mountEl, cell) {
   delete mountEl.dataset.frameTableBody;
   delete mountEl.dataset.frameCellRole;
   delete mountEl.dataset.frameImageStyle;
+  delete mountEl.dataset.frameShapeStyle;
   delete mountEl.dataset.frameCellPadding;
+  const frameRootForCleanup =
+    typeof mountEl.closest === "function" ? mountEl.closest("[data-site-frame-page]") : null;
+  const cellIndexForCleanup = mountEl.getAttribute("data-frame-cell-index");
+  if (frameRootForCleanup instanceof HTMLElement && cellIndexForCleanup != null) {
+    removePlacedLayersForCell(frameRootForCleanup, cellIndexForCleanup);
+  }
+
   mountEl.className = "site-frame__cell-mount";
+  mountEl.classList.remove("site-frame__cell-mount--frame-placed", "site-frame__cell-mount--placement-dragging");
   mountEl.removeAttribute("aria-label");
   mountEl.style.removeProperty("padding");
   const role = (cell && String(cell.cellRole || "").trim()) || "";
@@ -223,12 +284,23 @@ function applyCellToMount(mountEl, cell) {
   mountEl.dataset.frameContentType = t;
   const body = (cell && cell.body) || "";
   const cellPad = cell && cell.cellPadding;
-  const isImageCell = t === "image" && String(body).trim();
-  if (!isImageCell) {
+
+  if (t === "stack") {
+    const stackLayers = parseStackLayersFromCell(cell);
+    if (!stackLayers.length) {
+      mountEl.innerHTML = "";
+      mountEl.setAttribute("aria-hidden", "true");
+      mountEl.dataset.frameContentType = "empty";
+      return;
+    }
     applyCellPaddingStyles(mountEl, cellPad);
-  } else {
-    syncCellPaddingOverrideClass(mountEl, cellPaddingIsActive(cellPad));
+    applyStackLayersToMount(mountEl, cell);
+    return;
   }
+
+  const isImageCell = t === "image" && String(body).trim();
+  const isShapeCell = t === "shape";
+  applyCellPaddingStyles(mountEl, cellPad);
   delete mountEl.dataset.frameTextStyle;
   /** @type {Record<string, string>} */
   const alignToPosition = {
@@ -264,13 +336,16 @@ function applyCellToMount(mountEl, cell) {
     const pos = alignToPosition[alignKey];
     const flexAlign = alignToFlex[alignKey] || alignToFlex.center;
     const mw = String(is.maxWidth || "").trim();
-    const scaleRaw = Number(is.scalePct);
-    const scalePct = Number.isFinite(scaleRaw) ? Math.min(250, Math.max(25, Math.round(scaleRaw))) : 100;
+    const scalePct = clampFrameCellScalePct(is.scalePct, 100);
     const wrap = document.createElement("div");
     wrap.className = "site-frame__cell-image-wrap";
-    wrap.style.alignItems = flexAlign[0];
-    wrap.style.justifyContent = flexAlign[1];
-    applyCellPaddingStyles(wrap, cellPad, { pageOverrideClass: false });
+    const placement = placementFromStyle(is);
+    const usePlacement = placementIsActive(placement);
+    if (!usePlacement) {
+      clearFramePlacementStyles(wrap);
+      wrap.style.alignItems = flexAlign[0];
+      wrap.style.justifyContent = flexAlign[1];
+    }
 
     const img = document.createElement("img");
     img.src = resolveAssetImageSrc(String(body).trim());
@@ -282,12 +357,12 @@ function applyCellToMount(mountEl, cell) {
     img.style.flexShrink = "0";
     img.style.maxWidth = mw || "100%";
     img.style.maxHeight = "100%";
-    if (mw) {
-      img.style.width = `min(${scalePct}%, ${mw})`;
-    } else {
-      img.style.width = `${scalePct}%`;
-    }
-    img.style.height = `${scalePct}%`;
+    applyImageGridDimensions(
+      img,
+      { scalePct, maxWidth: mw },
+      mountEl,
+      usePlacement,
+    );
     img.style.removeProperty("transform");
     img.style.removeProperty("transform-origin");
     const linkHref = sanitizeNavUrl(String(is.linkHref || is.link_href || ""));
@@ -304,7 +379,11 @@ function applyCellToMount(mountEl, cell) {
     } else {
       wrap.appendChild(img);
     }
-    mountEl.appendChild(wrap);
+    if (usePlacement && placement) {
+      applyFramePlacementToWrap(mountEl, wrap, placement);
+    } else {
+      mountEl.appendChild(wrap);
+    }
     try {
       mountEl.dataset.frameImageStyle = encodeURIComponent(
         JSON.stringify({
@@ -313,10 +392,52 @@ function applyCellToMount(mountEl, cell) {
           maxWidth: mw,
           scalePct,
           linkHref,
+          placementLeftPct: usePlacement && placement ? placement.placementLeftPct : null,
+          placementTopPct: usePlacement && placement ? placement.placementTopPct : null,
         }),
       );
     } catch (_e) {
       delete mountEl.dataset.frameImageStyle;
+    }
+  } else if (isShapeCell) {
+    mountEl.classList.add("site-frame__cell-mount--image");
+    const ss = normalizeShapeStyle((cell && cell.shapeStyle) || {});
+    const alignKey = ss.objectAlign in SHAPE_ALIGN_TO_FLEX ? ss.objectAlign : "center";
+    const flexAlign = SHAPE_ALIGN_TO_FLEX[alignKey] || SHAPE_ALIGN_TO_FLEX.center;
+    const wrap = document.createElement("div");
+    wrap.className = "site-frame__cell-shape-wrap";
+    const shapePlacement = placementFromStyle(ss);
+    const shapeUsePlacement = placementIsActive(shapePlacement);
+    if (!shapeUsePlacement) {
+      clearFramePlacementStyles(wrap);
+      wrap.style.alignItems = flexAlign[0];
+      wrap.style.justifyContent = flexAlign[1];
+    }
+
+    const svg = createShapeSvgElement(ss, mountEl, { relativeToFrame: shapeUsePlacement });
+    const linkHref = sanitizeNavUrl(ss.linkHref);
+    if (linkHref) {
+      const a = document.createElement("a");
+      a.href = linkHref;
+      a.className = "site-frame__cell-image-link";
+      if (/^https?:/i.test(linkHref)) {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      }
+      a.appendChild(svg);
+      wrap.appendChild(a);
+    } else {
+      wrap.appendChild(svg);
+    }
+    if (shapeUsePlacement && shapePlacement) {
+      applyFramePlacementToWrap(mountEl, wrap, shapePlacement);
+    } else {
+      mountEl.appendChild(wrap);
+    }
+    try {
+      mountEl.dataset.frameShapeStyle = encodeURIComponent(JSON.stringify(ss));
+    } catch (_e) {
+      delete mountEl.dataset.frameShapeStyle;
     }
   } else if (t === "html") {
     mountEl.innerHTML = body;
@@ -399,15 +520,25 @@ function dispatchFrameSettings() {
  * @param {{ pageName: string, rootSelector: string }} options
  */
 export async function mountSiteFramePage(options) {
-  const pageName =
-    options && typeof options.pageName === "string" ? options.pageName.trim() : "";
   const rootSel = options && typeof options.rootSelector === "string" ? options.rootSelector.trim() : "";
-  if (!pageName || !rootSel) {
+  const optionsPageName =
+    options && typeof options.pageName === "string" ? options.pageName.trim() : "";
+  if (!rootSel) {
     return;
   }
   const root = document.querySelector(rootSel);
   if (!root) {
     return;
+  }
+  const pageName = await resolveFramePageName(/** @type {HTMLElement} */ (root), optionsPageName);
+  if (!pageName) {
+    return;
+  }
+  if (fromDomMismatch(root, optionsPageName, pageName)) {
+    console.warn(
+      `[site-frame] data-site-frame-page="${root.getAttribute("data-site-frame-page")}" ` +
+        `does not match mountSiteFramePage pageName "${optionsPageName}"; using DOM.`,
+    );
   }
 
   const api = resolveFrameApiBase();

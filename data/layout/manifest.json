@@ -1,14 +1,14 @@
 {
-  "exportedAt": "2026-05-18T21:04:24Z",
+  "exportedAt": "2026-05-21T07:31:10Z",
   "sourceDb": "lib/db/customdev.db",
+  "homePage": "index",
+  "homePageId": null,
   "frames": [
-    "index"
+    "contact",
+    "index",
+    "index-copy"
   ],
   "galleries": [
-    {
-      "page": "contact",
-      "galleryKey": "default"
-    },
     {
       "page": "farewell-mr-fuji",
       "galleryKey": "default"
@@ -18,11 +18,11 @@
       "galleryKey": "default"
     },
     {
-      "page": "index",
+      "page": "mobile-view-index",
       "galleryKey": "default"
     },
     {
-      "page": "mobile-view-index",
+      "page": "mobile-view-index-copy",
       "galleryKey": "default"
     }
   ]

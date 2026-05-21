@@ -1,0 +1,129 @@
+{
+  "page": {
+    "id": 17,
+    "name": "index-copy",
+    "header": 0,
+    "footer": 0,
+    "groupId": null,
+    "sortOrder": 120,
+    "isHome": false
+  },
+  "frame": {
+    "id": 11,
+    "pageId": 17,
+    "columnCount": 2,
+    "rowCount": 2,
+    "label": "project",
+    "gridGap": {
+      "topPct": 8.0,
+      "rightPct": 0.0,
+      "bottomPct": 0.0,
+      "leftPct": 15.0
+    },
+    "notes": "",
+    "defaultTextFontFamily": "",
+    "defaultTextFontSize": 22
+  },
+  "cells": [
+    {
+      "id": 68,
+      "frameId": 11,
+      "cellIndex": 0,
+      "contentType": "text",
+      "body": "A Missing Tile\nCase\nDelicious\nSilver Hair Song\nSlow Boat\nFarewell, Mr. Fuji",
+      "cellRole": "",
+      "cellPadding": {
+        "topPct": 0.0,
+        "rightPct": 0.0,
+        "bottomPct": 24.5,
+        "leftPct": 0.0
+      },
+      "textStyle": {
+        "fontFamily": "",
+        "fontSize": 25,
+        "lineHeightPct": 100,
+        "padding": "",
+        "navUrl": "",
+        "navLabel": "",
+        "bodyBlocks": [
+          {
+            "type": "text",
+            "value": "A Missing Tile"
+          },
+          {
+            "type": "text",
+            "value": "Case"
+          },
+          {
+            "type": "text",
+            "value": "Delicious"
+          },
+          {
+            "type": "text",
+            "value": "Silver Hair Song"
+          },
+          {
+            "type": "text",
+            "value": "Slow Boat"
+          },
+          {
+            "type": "text",
+            "value": "Farewell, Mr. Fuji"
+          }
+        ],
+        "linkStyle": {
+          "underline": false,
+          "colorInherit": true,
+          "color": "",
+          "hover": true,
+          "hoverColorInherit": false,
+          "hoverColor": "#a6a6a6"
+        }
+      }
+    },
+    {
+      "id": 69,
+      "frameId": 11,
+      "cellIndex": 1,
+      "contentType": "empty",
+      "body": "",
+      "cellRole": "",
+      "cellPadding": "",
+      "textStyle": null
+    },
+    {
+      "id": 70,
+      "frameId": 11,
+      "cellIndex": 2,
+      "contentType": "empty",
+      "body": "",
+      "cellRole": "",
+      "cellPadding": "",
+      "textStyle": null
+    },
+    {
+      "id": 71,
+      "frameId": 11,
+      "cellIndex": 3,
+      "contentType": "image",
+      "body": "images/setting/page00.jpg",
+      "cellRole": "",
+      "cellPadding": {
+        "topPct": 0.0,
+        "rightPct": 0.0,
+        "bottomPct": 2.0,
+        "leftPct": 0.0
+      },
+      "textStyle": null,
+      "imageStyle": {
+        "objectFit": "contain",
+        "objectAlign": "bottom",
+        "maxWidth": "",
+        "scalePct": 15,
+        "linkHref": "contact.html",
+        "placementLeftPct": 81.0,
+        "placementTopPct": 88.5
+      }
+    }
+  ]
+}

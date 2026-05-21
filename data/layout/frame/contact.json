@@ -1,0 +1,91 @@
+{
+  "page": {
+    "id": 18,
+    "name": "contact",
+    "header": 0,
+    "footer": 0,
+    "groupId": null,
+    "sortOrder": 130,
+    "isHome": false
+  },
+  "frame": {
+    "id": 12,
+    "pageId": 18,
+    "columnCount": 2,
+    "rowCount": 1,
+    "label": "namecard",
+    "gridGap": "",
+    "notes": "",
+    "defaultTextFontFamily": "",
+    "defaultTextFontSize": 16
+  },
+  "cells": [
+    {
+      "id": 77,
+      "frameId": 12,
+      "cellIndex": 0,
+      "contentType": "text",
+      "body": "calvinvan58@gmail.com\ncalvinpony",
+      "cellRole": "",
+      "cellPadding": "",
+      "textStyle": {
+        "fontFamily": "",
+        "fontSize": 16,
+        "lineHeightPct": 140,
+        "padding": "",
+        "navUrl": "",
+        "navLabel": "",
+        "bodyBlocks": [
+          {
+            "type": "text",
+            "value": "calvinvan58@gmail.com",
+            "href": "mailto:calvinvan58@gmail.com"
+          },
+          {
+            "type": "text",
+            "value": "calvinpony",
+            "href": "https://www.instagram.com/calvinpony/"
+          }
+        ],
+        "linkStyle": {
+          "underline": false,
+          "colorInherit": true,
+          "color": "",
+          "hover": true,
+          "hoverColorInherit": false,
+          "hoverColor": "#a6a6a6"
+        }
+      }
+    },
+    {
+      "id": 78,
+      "frameId": 12,
+      "cellIndex": 1,
+      "contentType": "shape",
+      "body": "",
+      "cellRole": "",
+      "cellPadding": "",
+      "textStyle": null,
+      "imageStyle": null,
+      "shapeStyle": {
+        "shapeKind": "square",
+        "sizeMode": "keep_ratio",
+        "widthPct": 32,
+        "heightPct": 32,
+        "objectAlign": "center",
+        "rotationDeg": 0,
+        "cornerRadiusPct": 0,
+        "fillEnabled": true,
+        "fillColor": "#ffffff",
+        "fillOpacityPct": 100,
+        "strokeEnabled": false,
+        "strokeColor": "#000000",
+        "strokeOpacityPct": 100,
+        "strokeWidthPx": 2,
+        "linkHref": "",
+        "placementLeftPct": 72.0,
+        "placementTopPct": 30.5
+      }
+    }
+  ]
+}

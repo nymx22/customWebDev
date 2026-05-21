@@ -1,0 +1,367 @@
+/**
+ * Staging toolbar + floating panels: black & white chrome.
+ * Default: black panels, white type. Toggle `html.staging-chrome-light` for the inverse.
+ */
+
+html.staging {
+  --staging-chrome-fg: #ffffff;
+  --staging-chrome-fg-muted: #b3b3b3;
+  --staging-chrome-fg-subtle: #737373;
+  --staging-chrome-bg: #000000;
+  --staging-chrome-panel-bg: #0a0a0a;
+  --staging-chrome-bar-bg: #000000;
+  --staging-chrome-input-bg: #141414;
+  --staging-chrome-surface: #1a1a1a;
+  --staging-chrome-border: #ffffff;
+  --staging-chrome-border-dim: rgba(255, 255, 255, 0.28);
+  --staging-chrome-border-muted: rgba(255, 255, 255, 0.14);
+  --staging-chrome-hover: rgba(255, 255, 255, 0.1);
+  --staging-chrome-header-bg: rgba(255, 255, 255, 0.06);
+  --staging-chrome-chip-bg: rgba(0, 0, 0, 0.55);
+  --staging-chrome-btn-fg: #000000;
+  --staging-chrome-btn-bg: #ffffff;
+  --staging-chrome-btn-border: rgba(255, 255, 255, 0.4);
+  --staging-chrome-focus: #ffffff;
+  --staging-chrome-shadow: rgba(0, 0, 0, 0.55);
+  --staging-chrome-dotted: rgba(255, 255, 255, 0.42);
+  --staging-chrome-selected: #ffffff;
+}
+
+html.staging.staging-chrome-light {
+  --staging-chrome-fg: #000000;
+  --staging-chrome-fg-muted: #4d4d4d;
+  --staging-chrome-fg-subtle: #8c8c8c;
+  --staging-chrome-bg: #ffffff;
+  --staging-chrome-panel-bg: #f5f5f5;
+  --staging-chrome-bar-bg: #ffffff;
+  --staging-chrome-input-bg: #ffffff;
+  --staging-chrome-surface: #ebebeb;
+  --staging-chrome-border: #000000;
+  --staging-chrome-border-dim: rgba(0, 0, 0, 0.28);
+  --staging-chrome-border-muted: rgba(0, 0, 0, 0.14);
+  --staging-chrome-hover: rgba(0, 0, 0, 0.06);
+  --staging-chrome-header-bg: rgba(0, 0, 0, 0.05);
+  --staging-chrome-chip-bg: rgba(255, 255, 255, 0.85);
+  --staging-chrome-btn-fg: #ffffff;
+  --staging-chrome-btn-bg: #000000;
+  --staging-chrome-btn-border: rgba(0, 0, 0, 0.35);
+  --staging-chrome-focus: #000000;
+  --staging-chrome-shadow: rgba(0, 0, 0, 0.18);
+  --staging-chrome-dotted: rgba(0, 0, 0, 0.38);
+  --staging-chrome-selected: #000000;
+}
+
+/* —— Top bar —— */
+html.staging .staging-mode-label {
+  color: var(--staging-chrome-fg-muted);
+  background: var(--staging-chrome-surface);
+  border-bottom-color: var(--staging-chrome-border-dim);
+  border-right-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .staging-mode-label:hover {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-hover);
+}
+
+html.staging .staging-mode-label:focus-visible,
+html.staging .staging-publish__btn:focus-visible,
+html.staging .staging-gallery-publish__btn:focus-visible,
+html.staging .staging-structure-toggle:focus-visible,
+html.staging .staging-official-live-toggle:focus-visible,
+html.staging .staging-chrome-theme-toggle:focus-visible {
+  outline-color: var(--staging-chrome-focus);
+}
+
+html.staging .staging-official-live-toggle {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-bar-bg);
+  border-bottom-color: var(--staging-chrome-border-dim);
+  border-right-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .staging-chrome-theme-toggle {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: system-ui, sans-serif;
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-surface);
+  border: 1px solid var(--staging-chrome-border-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  appearance: none;
+  white-space: nowrap;
+}
+
+html.staging .staging-chrome-theme-toggle:hover {
+  background: var(--staging-chrome-hover);
+}
+
+html.staging .staging-publish__btn,
+html.staging .staging-gallery-publish__btn {
+  color: var(--staging-chrome-btn-fg);
+  background: var(--staging-chrome-btn-bg);
+  border-color: var(--staging-chrome-border);
+}
+
+html.staging .staging-publish__btn:hover,
+html.staging .staging-gallery-publish__btn:hover {
+  background: var(--staging-chrome-fg-muted);
+  color: var(--staging-chrome-btn-fg);
+}
+
+html.staging .staging-publish__feedback,
+html.staging .staging-gallery-publish__feedback {
+  color: var(--staging-chrome-fg-muted);
+}
+
+html.staging .staging-structure-toggle {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-surface);
+  border-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .staging-structure-toggle:hover {
+  background: var(--staging-chrome-hover);
+}
+
+html.staging .staging-publish,
+html.staging .staging-gallery-publish {
+  border-left-color: var(--staging-chrome-border-muted);
+}
+
+html:not(.staging):not(.official-live) .staging-enter-button {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-bar-bg);
+  border-bottom-color: var(--staging-chrome-border-dim);
+  border-right-color: var(--staging-chrome-border-dim);
+}
+
+html:not(.staging):not(.official-live) .staging-enter-button:hover {
+  color: var(--staging-chrome-fg);
+  border-color: var(--staging-chrome-border);
+  background: var(--staging-chrome-hover);
+}
+
+html:not(.staging):not(.official-live) .staging-enter-button:focus-visible {
+  outline-color: var(--staging-chrome-focus);
+}
+
+/* —— Floating panels (shared) —— */
+html.staging .staging-testing-panel,
+html.staging .staging-site-structure-panel,
+html.staging .staging-frame-panel {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-panel-bg);
+  border-color: var(--staging-chrome-border-dim);
+  box-shadow: 0 8px 28px var(--staging-chrome-shadow);
+}
+
+html.staging .staging-testing-panel__header,
+html.staging .staging-frame-panel__header {
+  background: var(--staging-chrome-header-bg);
+  border-bottom-color: var(--staging-chrome-border-muted);
+}
+
+html.staging .staging-site-structure-panel__header {
+  border-bottom-color: var(--staging-chrome-border-muted);
+}
+
+html.staging .staging-testing-panel__field-label,
+html.staging .staging-testing-panel__fieldset-legend,
+html.staging .staging-site-structure-panel__label,
+html.staging .staging-site-structure-panel__h,
+html.staging .staging-site-structure-panel__details > summary {
+  color: var(--staging-chrome-fg-subtle);
+}
+
+html.staging .staging-testing-panel__field select,
+html.staging .staging-site-structure-panel__input,
+html.staging .staging-site-structure-panel__select,
+html.staging .staging-frame-panel__input,
+html.staging .staging-frame-panel__select,
+html.staging .staging-frame-panel__textarea {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-input-bg);
+  border-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .staging-testing-panel__check-row,
+html.staging .staging-site-structure-panel__check,
+html.staging .staging-site-structure-panel__list {
+  color: var(--staging-chrome-fg);
+}
+
+html.staging .staging-testing-panel__check-row input,
+html.staging .staging-site-structure-panel__check input {
+  accent-color: var(--staging-chrome-fg);
+}
+
+html.staging .staging-testing-panel__close:hover,
+html.staging .staging-site-structure-panel__close:hover {
+  background: var(--staging-chrome-hover);
+}
+
+html.staging .staging-site-structure-panel__title,
+html.staging .staging-frame-panel__title {
+  color: var(--staging-chrome-fg);
+}
+
+html.staging .staging-site-structure-panel__close,
+html.staging .staging-frame-panel__close {
+  color: var(--staging-chrome-fg-muted);
+}
+
+html.staging .staging-site-structure-panel__status,
+html.staging .staging-frame-panel__status {
+  color: var(--staging-chrome-fg-muted);
+  border-bottom-color: var(--staging-chrome-border-muted);
+}
+
+html.staging .staging-site-structure-panel__export {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-surface);
+  border-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .staging-site-structure-panel__section,
+html.staging .staging-site-structure-panel__details {
+  border-bottom-color: var(--staging-chrome-border-muted);
+}
+
+html.staging .staging-site-structure-panel__primary {
+  color: var(--staging-chrome-btn-fg);
+  background: var(--staging-chrome-btn-bg);
+  border-color: var(--staging-chrome-border);
+}
+
+html.staging .staging-site-structure-panel__primary:hover {
+  background: var(--staging-chrome-fg-muted);
+}
+
+html.staging .staging-site-structure-panel__li-edit,
+html.staging .staging-site-structure-panel__li-cancel {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-surface);
+  border-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .staging-site-structure-panel__li-form {
+  border-color: var(--staging-chrome-border-dim);
+  background: var(--staging-chrome-surface);
+}
+
+html.staging .staging-site-structure-panel__li-readonly {
+  color: var(--staging-chrome-fg-subtle);
+}
+
+html.staging .staging-site-structure-panel__del {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-surface);
+  border-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .staging-pages-tree__group {
+  border-color: var(--staging-chrome-border-muted);
+}
+
+html.staging .staging-pages-tree__page-link {
+  color: var(--staging-chrome-fg);
+}
+
+html.staging .staging-pages-tree__page-link:hover {
+  color: var(--staging-chrome-fg-muted);
+}
+
+html.staging .staging-pages-tree__page-link:focus-visible {
+  outline-color: var(--staging-chrome-focus);
+}
+
+html.staging .staging-pages-tree__home-btn {
+  border-color: var(--staging-chrome-border-dim);
+  background: var(--staging-chrome-surface);
+}
+
+html.staging .staging-pages-tree__drop--over {
+  outline-color: var(--staging-chrome-border);
+}
+
+html.staging .staging-testing-panel__layout-note {
+  color: var(--staging-chrome-fg-muted);
+}
+
+html.staging .draggable-gallery.draggable-gallery--staging,
+html.staging .site-frame--staging {
+  border-color: var(--staging-chrome-dotted);
+}
+
+html.staging .draggable-gallery__staging-gallery-label,
+html.staging .site-frame__staging-frame-label {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-chip-bg);
+  border-color: var(--staging-chrome-border-dim);
+}
+
+html.staging .draggable-gallery__staging-gallery-label:hover,
+html.staging .site-frame__staging-frame-label:hover {
+  background: var(--staging-chrome-hover);
+}
+
+html.staging .draggable-gallery__staging-gallery-label:focus-visible,
+html.staging .site-frame__staging-frame-label:focus-visible {
+  outline-color: var(--staging-chrome-focus);
+}
+
+html.staging .site-frame__staging-frame-label--unsaved {
+  border-color: var(--staging-chrome-border);
+  box-shadow: 0 0 0 1px var(--staging-chrome-border-muted);
+}
+
+html.staging .draggable-gallery__staging-gallery-label--rename-input {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-input-bg);
+  border-color: var(--staging-chrome-border);
+}
+
+html.staging .site-frame__cell-mount--staging-selected {
+  outline-color: var(--staging-chrome-selected);
+}
+
+html.staging .staging-frame-panel__hint,
+html.staging .staging-frame-panel__cell-editor-empty {
+  color: var(--staging-chrome-fg-subtle);
+}
+
+html.staging .staging-frame-panel__cell-list-summary,
+html.staging .staging-frame-panel__field-label {
+  color: var(--staging-chrome-fg-muted);
+}
+
+html.staging .staging-frame-panel__cell-pick-btn {
+  color: var(--staging-chrome-fg);
+  background: var(--staging-chrome-surface);
+  border-color: var(--staging-chrome-border-muted);
+}
+
+html.staging .staging-frame-panel__cell-pick-btn:hover {
+  background: var(--staging-chrome-hover);
+}
+
+html.staging .staging-frame-panel__cell-pick-btn.is-selected {
+  border-color: var(--staging-chrome-border);
+  background: var(--staging-chrome-hover);
+}
+
+html.staging .staging-frame-panel__frame-meta {
+  border-color: var(--staging-chrome-border-dim);
+  background: var(--staging-chrome-surface);
+}
+
+html.staging .staging-frame-panel__strip {
+  border-bottom-color: var(--staging-chrome-border-muted);
+}

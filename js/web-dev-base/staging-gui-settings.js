@@ -5,7 +5,11 @@
 
 import { normalizeStoredAssetImagePath } from "./frame-asset-images.js";
 import { cellDraftToPatchPayload, cellPaddingDirtyKey } from "./frame-cell-padding.js";
+import { placementFromStyle } from "./frame-cell-placement.js";
+import { clampFrameCellScalePct } from "./frame-cell-scale.js";
 import { blocksToPlainBody, normalizeBodyBlocks, resolveBodyBlocks } from "./frame-text-blocks.js";
+import { normalizeStackLayer } from "./frame-cell-layers.js";
+import { normalizeShapeStyle } from "./frame-cell-shape.js";
 import { normalizeTextLinkStyle } from "./frame-text-link-style.js";
 import { createFrameCellStagingUi } from "./frame-staging-panel-ui.js";
 import {
@@ -14,18 +18,41 @@ import {
   parseGridGap,
   readGridGapPctFromInputs,
 } from "./frame-grid-gap.js";
+import {
+  clearFramePageSession,
+  flushAllFramePageSessionsToApi,
+  persistFramePageSession,
+} from "./frame-layout-persist.js";
+import { flushGalleriesForPage, reloadGalleriesForPage } from "./gallery-core/gallery-core.js";
+import { fetchBakedFrame } from "./layout-baked.js";
+import {
+  clampStagingPanelElement,
+  setStagingPanelPosition,
+} from "./staging-floating-panel.js";
 
 /** `window` event after frame cells change in staging (no detail). */
 export const STAGING_FRAME_SETTINGS_EVENT = "customdev-site-frame-settings";
 
-/** @type {Set<{ saveAllDirty: () => Promise<void> }>} */
+/** @type {Set<{ savePageLayout: () => Promise<unknown> }>} */
 const framePublishHandlers = new Set();
 
-/** Save every mounted frame panel’s dirty SQLite state (used by **Publish** in `lib/staging/staging.js`). */
+/** Save every mounted frame page layout to SQLite (used by **Publish** in `lib/staging/staging.js`). */
 export async function flushAllFramesForPublish() {
   const list = [...framePublishHandlers];
+  let skipPage = "";
+  let api = "";
   for (let i = 0; i < list.length; i++) {
-    await list[i].saveAllDirty();
+    const h = list[i];
+    if (h.pageName) {
+      skipPage = h.pageName;
+    }
+    if (h.api) {
+      api = h.api;
+    }
+    await h.savePageLayout();
+  }
+  if (api) {
+    await flushAllFramePageSessionsToApi(api, { skipPage });
   }
 }
 
@@ -223,12 +250,29 @@ function normalizeCellForDirty(cell) {
   if (out.contentType === "image") {
     out.body = normalizeStoredAssetImagePath(out.body);
     const is = cell.imageStyle || {};
+    const placement = placementFromStyle(is);
     out.imageStyle = {
       objectFit: String(is.objectFit || "contain"),
       objectAlign: String(is.objectAlign || "center"),
       maxWidth: String(is.maxWidth || "").trim(),
-      scalePct: Math.min(250, Math.max(25, Number(is.scalePct) || 100)),
+      scalePct: clampFrameCellScalePct(is.scalePct, 100),
+      linkHref: String(is.linkHref || "").trim(),
+      placementLeftPct: placement ? placement.placementLeftPct : null,
+      placementTopPct: placement ? placement.placementTopPct : null,
     };
+  }
+  if (out.contentType === "shape") {
+    out.body = "";
+    out.shapeStyle = normalizeShapeStyle(cell.shapeStyle);
+  }
+  if (out.contentType === "stack" && Array.isArray(cell.layers)) {
+    out.body = String(cell.body || "");
+    out.layers = cell.layers
+      .map((layer) => {
+        const n = normalizeStackLayer(layer);
+        return n ? JSON.parse(JSON.stringify(n)) : null;
+      })
+      .filter(Boolean);
   }
   return out;
 }
@@ -248,6 +292,9 @@ function frameCellSummarySnippet(contentType, taValue) {
     const s = raw.trim().replace(/\s+/g, " ");
     return s.length <= 80 ? s || "(no URL)" : s.slice(0, 79) + "…";
   }
+  if (ty === "shape") {
+    return "shape";
+  }
   if (ty === "html") {
     const s = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     return s.length <= 72 ? s || "(no HTML)" : s.slice(0, 71) + "…";
@@ -255,6 +302,9 @@ function frameCellSummarySnippet(contentType, taValue) {
   if (ty === "text") {
     const s = raw.replace(/\s+/g, " ").trim();
     return s.length <= 72 ? s || "(no text)" : s.slice(0, 71) + "…";
+  }
+  if (ty === "stack") {
+    return "stack layers";
   }
   return raw.slice(0, 72);
 }
@@ -610,6 +660,36 @@ export function mountFrameStagingTestingGui(opts) {
     labelBtn.classList.toggle("site-frame__staging-frame-label--unsaved", dirty);
   }
 
+  function buildFrameSessionSnapshot() {
+    const fid = parseInt(root.dataset.siteFrameId || "", 10);
+    if (!fid) {
+      return null;
+    }
+    const layout = readPanelFrameState();
+    return {
+      frame: {
+        id: fid,
+        label: frameLabelIn.value,
+        gridGap: layout.gridGap,
+        columnCount: layout.columnCount,
+        rowCount: layout.rowCount,
+        defaultTextFontFamily: resolveFontFamilyFromSelect(frameFontSel, frameFontCustomIn),
+        defaultTextFontSize: Math.min(
+          288,
+          Math.max(8, parseInt(String(frameTextSizeIn.value), 10) || 16),
+        ),
+      },
+      cells: Array.from(cellDrafts.values()).filter((c) => c && typeof c.id === "number"),
+    };
+  }
+
+  function persistFrameSessionDraft() {
+    const snap = buildFrameSessionSnapshot();
+    if (snap) {
+      persistFramePageSession(pageName, snap);
+    }
+  }
+
   function applyAllCellDraftsToPage() {
     root.querySelectorAll("[data-frame-cell-index]").forEach((m) => {
       const ix = m.getAttribute("data-frame-cell-index");
@@ -621,6 +701,15 @@ export function mountFrameStagingTestingGui(opts) {
         applyCellToMount(/** @type {HTMLElement} */ (m), draft);
       }
     });
+    persistFrameSessionDraft();
+  }
+
+  function commitPublishedCell(cell) {
+    if (!publishedBaseline || !cell || typeof cell.cellIndex !== "number") {
+      return;
+    }
+    publishedBaseline.cells.set(String(cell.cellIndex), cloneCellDraft(cell));
+    updateChipDirtyState();
   }
 
   function syncCellDraftsFromApi(cells, fr) {
@@ -708,6 +797,7 @@ export function mountFrameStagingTestingGui(opts) {
         lastAssetImagesList = Array.isArray(data && data.images) ? data.images : [];
         return lastAssetImagesList;
       }),
+    onCellSaved: commitPublishedCell,
   });
 
   cellUi.wireMountClick(() => panel.hasAttribute("hidden"));
@@ -934,10 +1024,10 @@ export function mountFrameStagingTestingGui(opts) {
 
   async function pullFrameFromApi() {
     const res = await fetch(`${api}/api/frame?page=${encodeURIComponent(pageName)}`, { mode: "cors" });
-    if (!res.ok) {
-      return null;
+    if (res.ok) {
+      return res.json();
     }
-    return res.json();
+    return fetchBakedFrame(pageName);
   }
 
   function placeFramePanelNearRootIfNeeded() {
@@ -950,6 +1040,7 @@ export function mountFrameStagingTestingGui(opts) {
           panel.style.top = pos.top;
           panel.style.right = "auto";
           panel.style.bottom = "auto";
+          clampStagingPanelElement(panel);
           return;
         }
       }
@@ -957,10 +1048,7 @@ export function mountFrameStagingTestingGui(opts) {
       /* ignore */
     }
     const r = root.getBoundingClientRect();
-    panel.style.left = `${Math.max(8, Math.round(r.left))}px`;
-    panel.style.top = `${Math.round(Math.min(window.innerHeight - 120, r.bottom + 8))}px`;
-    panel.style.right = "auto";
-    panel.style.bottom = "auto";
+    setStagingPanelPosition(panel, Math.round(r.left), Math.round(r.bottom + 8));
   }
 
   function requestClosePanel() {
@@ -995,17 +1083,22 @@ export function mountFrameStagingTestingGui(opts) {
       });
   }
 
+  function revealFramePanel() {
+    panel.removeAttribute("hidden");
+    placeFramePanelNearRootIfNeeded();
+    clampStagingPanelElement(panel);
+  }
+
   function setOpen(open) {
     if (open) {
       cancelFrameLivePreviewRaf();
-      placeFramePanelNearRootIfNeeded();
       labelBtn.setAttribute("aria-expanded", "true");
       status.textContent = "Loading…";
       pullFrameFromApi()
         .then((data) => {
           status.textContent = "";
           applyPublishedFrameData(data);
-          panel.removeAttribute("hidden");
+          revealFramePanel();
           reloadAssetCatalogs().then(() => {
             suppressFrameFontSelChange = true;
             try {
@@ -1020,7 +1113,7 @@ export function mountFrameStagingTestingGui(opts) {
         })
         .catch(() => {
           status.textContent = "Could not load frame (API?).";
-          panel.removeAttribute("hidden");
+          revealFramePanel();
           reloadAssetCatalogs().then(() => {
             fillFontFamilySelect(frameFontSel, lastAssetFontsList, true);
             cellUi.refreshAssetImagePickers();
@@ -1069,6 +1162,26 @@ export function mountFrameStagingTestingGui(opts) {
       hasField = true;
     }
     return hasField ? body : null;
+  }
+
+  function buildFullFramePatchPayload() {
+    const fid = parseInt(root.dataset.siteFrameId || "", 10);
+    if (!fid) {
+      return null;
+    }
+    const now = readPanelFrameState();
+    return {
+      id: fid,
+      label: frameLabelIn.value,
+      gridGap: readGridGapFromPanel(),
+      columnCount: now.columnCount,
+      rowCount: now.rowCount,
+      defaultTextFontFamily: resolveFontFamilyFromSelect(frameFontSel, frameFontCustomIn),
+      defaultTextFontSize: Math.min(
+        288,
+        Math.max(8, parseInt(String(frameTextSizeIn.value), 10) || 16),
+      ),
+    };
   }
 
   function frameDimensionsWillResize() {
@@ -1155,97 +1268,125 @@ export function mountFrameStagingTestingGui(opts) {
     }
   }
 
-  async function saveAllDirtyToApi() {
-    if (!publishedBaseline || !isPanelDirty()) {
-      return;
+  async function savePageLayoutToApi() {
+    if (typeof cellUi.flushActiveCellDraft === "function") {
+      cellUi.flushActiveCellDraft();
     }
-    const fid = parseInt(root.dataset.siteFrameId || "", 10);
+
+    if (!publishedBaseline) {
+      const boot = await pullFrameFromApi();
+      if (boot && typeof boot === "object" && boot.frame) {
+        applyPublishedFrameData(boot);
+      }
+    }
+
+    let fid = parseInt(root.dataset.siteFrameId || "", 10);
     if (!fid) {
-      throw new Error("no_frame_id");
-    }
-    const selectedIx = cellUi.getSelectedCellIndex();
-    const selectedKey = selectedIx != null ? String(selectedIx) : null;
-    const cellHandler = selectedKey ? cellSaveHandlers.get(selectedKey) : null;
-
-    if (cellHandler) {
-      try {
-        await cellHandler.save();
-      } catch (err) {
-        throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
-          _cellSave: true,
-        });
+      const boot = await pullFrameFromApi();
+      if (boot && boot.frame && typeof boot.frame.id === "number") {
+        root.dataset.siteFrameId = String(boot.frame.id);
+        fid = boot.frame.id;
+        if (!publishedBaseline) {
+          applyPublishedFrameData(boot);
+        }
       }
     }
+    if (!fid) {
+      throw new Error(`no_frame_for_page:${pageName}`);
+    }
 
-    const indices = new Set([...cellDrafts.keys(), ...publishedBaseline.cells.keys()]);
-    for (const ix of indices) {
-      if (ix === selectedKey) {
-        continue;
-      }
-      const now = normalizeCellForDirty(cellDrafts.get(ix));
-      const base = normalizeCellForDirty(publishedBaseline.cells.get(ix));
-      if (JSON.stringify(now) === JSON.stringify(base)) {
-        continue;
-      }
-      const draft = cellDrafts.get(ix);
-      if (draft) {
-        await patchCellDraftToApi(draft);
-      }
+    if (!publishedBaseline) {
+      throw new Error(`no_frame_for_page:${pageName}`);
     }
 
     const willResizeGrid = frameDimensionsWillResize();
-    const draftsBeforeResize = willResizeGrid ? new Map(cellDrafts) : null;
+    await flushGalleriesForPage(pageName);
 
-    await patchFrameToApi();
-    if (willResizeGrid && draftsBeforeResize) {
-      await patchAllCellDraftsAfterGridResize(draftsBeforeResize);
+    const draftsBeforeResize = willResizeGrid ? new Map(cellDrafts) : null;
+    const fullFrameBody = buildFullFramePatchPayload();
+
+    try {
+      if (willResizeGrid) {
+        await patchFrameToApi(fullFrameBody);
+        if (draftsBeforeResize) {
+          await patchAllCellDraftsAfterGridResize(draftsBeforeResize);
+        }
+      } else {
+        for (const draft of cellDrafts.values()) {
+          if (!draft || typeof draft.id !== "number") {
+            continue;
+          }
+          const out = await patchCellDraftToApi(draft);
+          const cell = out && out.cell;
+          if (cell && typeof cell.cellIndex === "number") {
+            cellDrafts.set(String(cell.cellIndex), cell);
+          }
+        }
+        await patchFrameToApi(fullFrameBody);
+      }
+    } catch (err) {
+      throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
+        _cellSave: true,
+      });
     }
+
     const data = await pullFrameFromApi();
     if (!data) {
       throw new Error("no_frame_reload");
     }
     applyPublishedFrameData(data);
     dispatchFrameSettings();
+    await reloadGalleriesForPage(pageName);
     cellUi.refreshEditor();
     updateChipDirtyState();
+    clearFramePageSession(pageName);
     if (requestRegistryRefresh) {
       requestRegistryRefresh();
     }
+    return { saved: true };
   }
 
-  const publishHandle = { saveAllDirty: saveAllDirtyToApi };
+  const publishHandle = { savePageLayout: savePageLayoutToApi, pageName, api };
   framePublishHandlers.add(publishHandle);
 
   saveAllBtn.addEventListener("click", () => {
-    const fid = parseInt(root.dataset.siteFrameId || "", 10);
-    if (!fid) {
-      status.textContent = "No frame id on page (GET /api/frame failed?).";
-      return;
-    }
-    status.textContent = "";
+    const saveLabel = saveAllBtn.textContent;
+    status.textContent = "Saving…";
     saveAllBtn.disabled = true;
-    const selectedIx = cellUi.getSelectedCellIndex();
-    const cellHandler = selectedIx != null ? cellSaveHandlers.get(String(selectedIx)) : null;
+    saveAllBtn.textContent = "Saving…";
 
-    saveAllDirtyToApi()
+    const savingWillResizeGrid = frameDimensionsWillResize();
+    savePageLayoutToApi()
       .then(() => {
-        const suffix = cellHandler && selectedIx != null ? ` and cell ${selectedIx}` : "";
-        const willResizeGrid = frameDimensionsWillResize();
-        status.textContent = willResizeGrid
-          ? `Saved frame (grid resized; all cell drafts written)${suffix}.`
-          : `Saved frame${suffix}.`;
+        status.textContent = savingWillResizeGrid
+          ? "Saved — frame, all cells, and galleries on this page (grid resized)."
+          : "Saved — frame, all cells, and galleries on this page.";
       })
       .catch((err) => {
         if (err && err._cellSave) {
-          status.textContent = "Could not save cell (is npm run dev:api running?).";
+          const detail = err && err.message ? String(err.message).trim() : "";
+          status.textContent =
+            detail && detail !== "HTTP 400" && detail !== "HTTP 404" && detail !== "HTTP 500"
+              ? "Could not save layout: " + detail
+              : "Could not save layout (is npm run dev:api running?).";
+        } else if (err && String(err.message || "").startsWith("no_frame_for_page:")) {
+          status.textContent =
+            "No frame in SQLite for this page (\"" +
+            pageName +
+            "\"). In Pages: page name must match data-site-frame-page, or use Add frame.";
         } else if (err && err.message === "no_frame_id") {
           status.textContent = "No frame id on page (GET /api/frame failed?).";
+        } else if (err && String(err.message || "").startsWith("gallery_patch_")) {
+          status.textContent = "Could not save a gallery on this page (check dev API logs).";
+        } else if (err && String(err.message || "").startsWith("font_patch_")) {
+          status.textContent = "Could not save page font (check dev API logs).";
         } else {
-          status.textContent = "Could not save frame (check dev API logs).";
+          status.textContent = "Could not save layout (check dev API logs).";
         }
       })
       .finally(() => {
         saveAllBtn.disabled = false;
+        saveAllBtn.textContent = saveLabel;
       });
   });
 
@@ -1304,10 +1445,7 @@ export function mountFrameStagingTestingGui(opts) {
     }
     const dx = ev.clientX - framePanelStartX;
     const dy = ev.clientY - framePanelStartY;
-    panel.style.left = `${framePanelStartLeft + dx}px`;
-    panel.style.top = `${framePanelStartTop + dy}px`;
-    panel.style.right = "auto";
-    panel.style.bottom = "auto";
+    setStagingPanelPosition(panel, framePanelStartLeft + dx, framePanelStartTop + dy);
   }
 
   function onFramePanelDragUp() {
@@ -1337,10 +1475,10 @@ export function mountFrameStagingTestingGui(opts) {
     const rect = panel.getBoundingClientRect();
     framePanelStartLeft = rect.left;
     framePanelStartTop = rect.top;
-    panel.style.left = `${framePanelStartLeft}px`;
-    panel.style.top = `${framePanelStartTop}px`;
-    panel.style.right = "auto";
-    panel.style.bottom = "auto";
+    setStagingPanelPosition(panel, framePanelStartLeft, framePanelStartTop);
+    const snapped = panel.getBoundingClientRect();
+    framePanelStartLeft = snapped.left;
+    framePanelStartTop = snapped.top;
     ev.preventDefault();
     window.addEventListener("mousemove", onFramePanelDragMove);
     window.addEventListener("mouseup", onFramePanelDragUp);
@@ -1353,9 +1491,25 @@ export function mountFrameStagingTestingGui(opts) {
   panel.appendChild(bodyEl);
   document.body.appendChild(panel);
 
+  void pullFrameFromApi().then((data) => {
+    if (data && typeof data === "object" && data.frame) {
+      applyPublishedFrameData(data);
+    } else if (initialFrame && typeof initialFrame === "object") {
+      fillFrameFields(initialFrame, true);
+      status.textContent =
+        "Frame layout not in SQLite for \"" +
+        pageName +
+        "\" — edits may not save until the page name matches the registry.";
+      updateChipDirtyState();
+    }
+  });
+
   function teardown() {
     framePublishHandlers.delete(publishHandle);
     cellUi.teardownMountClick();
+    if (typeof cellUi.teardownPlacementDrag === "function") {
+      cellUi.teardownPlacementDrag();
+    }
     labelBtn.removeEventListener("click", onLabelClick);
     head.removeEventListener("mousedown", onFramePanelHeaderMouseDown);
     window.removeEventListener("mousemove", onFramePanelDragMove);

@@ -13,6 +13,10 @@ import {
   resolveLayoutApiBaseForGallery,
 } from "../gallery-layout-from-db.js";
 import { fetchGalleryLayoutPayload, resolveGalleryLayoutSource } from "../layout-baked.js";
+import {
+  clampStagingPanelElement,
+  setStagingPanelPosition,
+} from "../staging-floating-panel.js";
 
 /** Session key when `html.staging`: values `half-click` | `zoom-close` for draggable gallery nav mode. */
 export const STAGING_GALLERY_NAV_STORAGE_KEY = "customdev_staging_gallery_nav";
@@ -29,14 +33,33 @@ export const STAGING_GALLERY_SETTINGS_EVENT = "customdev-staging-gallery-setting
 /** `window` event (no detail): each staging gallery with a testing panel flushes UI into `sessionStorage` before `lib/staging/staging.js` copies prefs to `localStorage` for live. */
 export const STAGING_GALLERY_SYNC_SESSION_PREFS_EVENT = "customdev-staging-gallery-sync-session-prefs";
 
-/** @type {Set<() => Promise<void>>} */
-const galleryPublishFlushers = new Set();
+/** @type {Set<{ pageName: string, flush: () => Promise<void>, reload?: () => Promise<void> }>} */
+const galleryLayoutSaveRegistry = new Set();
 
-/** Flush pending layout/font PATCH timers and write SQLite (used by **Publish** in `lib/staging/staging.js`). */
+/** Write gallery + page font layout from open testing panels to SQLite (no debounced PATCH). */
+export async function flushGalleriesForPage(pageName) {
+  const key = String(pageName || "").trim();
+  for (const entry of galleryLayoutSaveRegistry) {
+    if (entry.pageName === key) {
+      await entry.flush();
+    }
+  }
+}
+
+/** Re-fetch gallery layout rows from the API and sync DOM + open panel fields. */
+export async function reloadGalleriesForPage(pageName) {
+  const key = String(pageName || "").trim();
+  for (const entry of galleryLayoutSaveRegistry) {
+    if (entry.pageName === key && entry.reload) {
+      await entry.reload();
+    }
+  }
+}
+
+/** Flush every mounted gallery layout panel (used by **Publish** in `lib/staging/staging.js`). */
 export async function flushAllGalleriesForPublish() {
-  const list = [...galleryPublishFlushers];
-  for (let i = 0; i < list.length; i++) {
-    await list[i]();
+  for (const entry of galleryLayoutSaveRegistry) {
+    await entry.flush();
   }
 }
 
@@ -57,9 +80,7 @@ export function stagingGalleryPanelPosStorageKey(galleryStorageId) {
 
 function isHtmlStagingEnabled() {
   return (
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("staging") &&
-    !document.documentElement.classList.contains("official-live")
+    typeof document !== "undefined" && document.documentElement.classList.contains("staging")
   );
 }
 
@@ -1300,12 +1321,8 @@ export async function createDraggableGallery(root, options) {
       slideTransSel.appendChild(stBf);
     }
 
-    /** @type {number | null} */
-    let layoutGalleryPatchTimer = null;
-    /** @type {number | null} */
-    let layoutFontPatchTimer = null;
-    /** @type {(() => Promise<void>) | null} */
-    let galleryPublishFlushFn = null;
+    /** @type {{ pageName: string, flush: () => Promise<void>, reload?: () => Promise<void> } | null} */
+    let galleryLayoutSaveEntry = null;
 
     function slideTransitionToZoomStyle(st) {
       if (st === "bookflip") {
@@ -1336,62 +1353,21 @@ export async function createDraggableGallery(root, options) {
       syncZoomSpreadBookMode();
     }
 
-    function schedulePatchGalleryLayout(patch) {
+    /** Staging draft only — persisted on frame **Save** or **Publish** (`flushGallerySqliteForPublish`). */
+    function queueGalleryLayoutDraft(patch) {
       const row = layoutDbPayload && layoutDbPayload.gallery;
-      if (!layoutApiBaseResolved || !row || typeof row.id !== "number") {
+      if (!row || typeof row !== "object") {
         return;
       }
-      if (layoutGalleryPatchTimer != null) {
-        window.clearTimeout(layoutGalleryPatchTimer);
-      }
-      layoutGalleryPatchTimer = window.setTimeout(() => {
-        layoutGalleryPatchTimer = null;
-        const bodyPatch = { id: row.id, ...patch };
-        fetch(`${layoutApiBaseResolved}/api/gallery`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(bodyPatch),
-          mode: "cors",
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((data) => {
-            if (data && data.gallery) {
-              layoutDbPayload.gallery = data.gallery;
-              applyRuntimeFromLayoutGalleryRow(data.gallery);
-            }
-          })
-          .catch(() => {
-            /* ignore */
-          });
-      }, 400);
+      Object.assign(layoutDbPayload.gallery, patch);
     }
 
-    function schedulePatchFont(patch) {
-      const pageRow = layoutDbPayload && layoutDbPayload.page;
-      if (!layoutApiBaseResolved || !pageRow || typeof pageRow.id !== "number") {
+    function queuePageFontDraft(patch) {
+      if (!layoutDbPayload || typeof layoutDbPayload !== "object") {
         return;
       }
-      if (layoutFontPatchTimer != null) {
-        window.clearTimeout(layoutFontPatchTimer);
-      }
-      layoutFontPatchTimer = window.setTimeout(() => {
-        layoutFontPatchTimer = null;
-        fetch(`${layoutApiBaseResolved}/api/font`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pageId: pageRow.id, ...patch }),
-          mode: "cors",
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((data) => {
-            if (data && data.font) {
-              layoutDbPayload.font = data.font;
-            }
-          })
-          .catch(() => {
-            /* ignore */
-          });
-      }, 400);
+      const prev = layoutDbPayload.font && typeof layoutDbPayload.font === "object" ? layoutDbPayload.font : {};
+      layoutDbPayload.font = { ...prev, ...patch };
     }
 
     if (layoutApiBaseResolved) {
@@ -1423,7 +1399,7 @@ export async function createDraggableGallery(root, options) {
       } else if (!layoutDbPayload || !layoutDbPayload.gallery) {
         layoutNote.textContent = `No gallery row for page “${layoutPageName}” / key “${layoutGalleryKey}”. Add one under Pages / galleries.`;
       } else {
-        layoutNote.textContent = `Page “${layoutPageName}”, gallery key “${layoutGalleryKey}”. Edits PATCH the local API.`;
+        layoutNote.textContent = `Page “${layoutPageName}”, gallery key “${layoutGalleryKey}”. Saved with frame Save on this page.`;
       }
       layoutFs.appendChild(layoutNote);
 
@@ -1523,7 +1499,7 @@ export async function createDraggableGallery(root, options) {
           function onLayoutFontChange() {
             const fs = parseInt(layoutFontSizeInput.value, 10) || 16;
             const ff = layoutFontFamInput.value.trim() || "system-ui, sans-serif";
-            schedulePatchFont({ fontSize: fs, fontFamily: ff });
+            queuePageFontDraft({ fontSize: fs, fontFamily: ff });
           }
           layoutFontSizeInput.addEventListener("change", onLayoutFontChange);
           layoutFontFamInput.addEventListener("change", onLayoutFontChange);
@@ -1553,7 +1529,7 @@ export async function createDraggableGallery(root, options) {
             thumbnailStyle: layoutThumbStyle.value.trim(),
           };
           applyRuntimeFromLayoutGalleryRow(merged);
-          schedulePatchGalleryLayout({
+          queueGalleryLayoutDraft({
             thumbnail: thumbOn,
             zoom: zoomOn,
             zoomStyle: slideTransitionToZoomStyle(st),
@@ -1574,15 +1550,53 @@ export async function createDraggableGallery(root, options) {
         layoutGalStyle.addEventListener("change", onLayoutGalleryChange);
         layoutThumbStyle.addEventListener("change", onLayoutGalleryChange);
 
+        function syncLayoutPanelFieldsFromPayload() {
+          const gRowNow = layoutDbPayload && layoutDbPayload.gallery;
+          if (!gRowNow || typeof gRowNow !== "object") {
+            return;
+          }
+          layoutCbThumb.checked = Number(gRowNow.thumbnail) === 1;
+          layoutCbZoom.checked = Number(gRowNow.zoom) === 1;
+          const mapped = mapGalleryRowToInitialOptions(/** @type {Record<string, unknown>} */ (gRowNow));
+          const st = normalizeSlideTransition(mapped.slideTransition);
+          layoutZoomStyleSel.value = st;
+          gallerySlideTransition = st;
+          layoutColInput.value = String(gRowNow.columnCount ?? 2);
+          layoutRowInput.value = String(gRowNow.rowCount ?? 1);
+          layoutGalStyle.value = String(gRowNow.galleryStyle ?? "");
+          layoutThumbStyle.value = String(gRowNow.thumbnailStyle ?? "");
+          const fontRowNow = layoutDbPayload.font;
+          if (layoutFontSizeInput && layoutFontFamInput && fontRowNow && typeof fontRowNow === "object") {
+            layoutFontSizeInput.value = String(
+              typeof fontRowNow.fontSize === "number" ? fontRowNow.fontSize : 16,
+            );
+            layoutFontFamInput.value = String(
+              typeof fontRowNow.fontFamily === "string" ? fontRowNow.fontFamily : "system-ui, sans-serif",
+            );
+          }
+          applyRuntimeFromLayoutGalleryRow(gRowNow);
+        }
+
+        async function reloadGalleryLayoutFromApi() {
+          if (!layoutApiBaseResolved) {
+            return;
+          }
+          const next = await fetchGalleryLayoutPayload(layoutPageName, layoutGalleryKey, opts);
+          if (!next) {
+            return;
+          }
+          layoutDbPayload = next;
+          const g = next.gallery;
+          if (g && typeof g === "object") {
+            const regId = /** @type {Record<string, unknown>} */ (g).id;
+            if (typeof regId === "number" && Number.isFinite(regId)) {
+              root.dataset.galleryRegistryId = String(regId);
+            }
+          }
+          syncLayoutPanelFieldsFromPayload();
+        }
+
         async function flushGallerySqliteForPublish() {
-          if (layoutGalleryPatchTimer != null) {
-            window.clearTimeout(layoutGalleryPatchTimer);
-            layoutGalleryPatchTimer = null;
-          }
-          if (layoutFontPatchTimer != null) {
-            window.clearTimeout(layoutFontPatchTimer);
-            layoutFontPatchTimer = null;
-          }
           const rowNow = layoutDbPayload && layoutDbPayload.gallery;
           if (!layoutApiBaseResolved || !rowNow || typeof rowNow.id !== "number") {
             return;
@@ -1640,8 +1654,12 @@ export async function createDraggableGallery(root, options) {
           }
         }
 
-        galleryPublishFlushFn = flushGallerySqliteForPublish;
-        galleryPublishFlushers.add(flushGallerySqliteForPublish);
+        galleryLayoutSaveEntry = {
+          pageName: layoutPageName,
+          flush: flushGallerySqliteForPublish,
+          reload: reloadGalleryLayoutFromApi,
+        };
+        galleryLayoutSaveRegistry.add(galleryLayoutSaveEntry);
       }
 
       body.appendChild(layoutFs);
@@ -1755,6 +1773,7 @@ export async function createDraggableGallery(root, options) {
             panel.style.top = pos.top;
             panel.style.right = "auto";
             panel.style.bottom = "auto";
+            clampStagingPanelElement(panel);
             return;
           }
         }
@@ -1762,10 +1781,7 @@ export async function createDraggableGallery(root, options) {
         /* ignore */
       }
       const r = root.getBoundingClientRect();
-      panel.style.left = `${Math.max(8, Math.round(r.left))}px`;
-      panel.style.top = `${Math.round(Math.min(window.innerHeight - 120, r.bottom + 8))}px`;
-      panel.style.right = "auto";
-      panel.style.bottom = "auto";
+      setStagingPanelPosition(panel, Math.round(r.left), Math.round(r.bottom + 8));
     }
 
     function refreshStagingGalleryChrome() {
@@ -1786,7 +1802,7 @@ export async function createDraggableGallery(root, options) {
         } else if (!layoutDbPayload || !layoutDbPayload.gallery) {
           stagingChromeLayoutNote.textContent = `No gallery row for page “${layoutPageName}” / key “${layoutGalleryKey}”. Add one under Pages / galleries.`;
         } else {
-          stagingChromeLayoutNote.textContent = `Page “${layoutPageName}”, gallery key “${layoutGalleryKey}”. Edits PATCH the local API. Double-click the top label to rename the key.`;
+          stagingChromeLayoutNote.textContent = `Page “${layoutPageName}”, gallery key “${layoutGalleryKey}”. Saved with frame Save on this page. Double-click the top label to rename the key.`;
         }
       }
     }
@@ -1905,8 +1921,9 @@ export async function createDraggableGallery(root, options) {
       }
       const open = panel.hasAttribute("hidden");
       if (open) {
-        placePanelNearGalleryIfNeeded();
         setPanelHidden(false);
+        placePanelNearGalleryIfNeeded();
+        clampStagingPanelElement(panel);
       } else {
         setPanelHidden(true);
       }
@@ -1933,10 +1950,7 @@ export async function createDraggableGallery(root, options) {
       }
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
-      panel.style.left = `${startLeft + dx}px`;
-      panel.style.top = `${startTop + dy}px`;
-      panel.style.right = "auto";
-      panel.style.bottom = "auto";
+      setStagingPanelPosition(panel, startLeft + dx, startTop + dy);
     }
 
     function onDragUp() {
@@ -1966,10 +1980,10 @@ export async function createDraggableGallery(root, options) {
       const rect = panel.getBoundingClientRect();
       startLeft = rect.left;
       startTop = rect.top;
-      panel.style.left = `${startLeft}px`;
-      panel.style.top = `${startTop}px`;
-      panel.style.right = "auto";
-      panel.style.bottom = "auto";
+      setStagingPanelPosition(panel, startLeft, startTop);
+      const snapped = panel.getBoundingClientRect();
+      startLeft = snapped.left;
+      startTop = snapped.top;
       ev.preventDefault();
       window.addEventListener("mousemove", onDragMove);
       window.addEventListener("mouseup", onDragUp);
@@ -1978,17 +1992,9 @@ export async function createDraggableGallery(root, options) {
     header.addEventListener("mousedown", onHeaderMouseDown);
 
     stagingTestingPanelTeardown = function stagingTestingPanelTeardownFn() {
-      if (galleryPublishFlushFn) {
-        galleryPublishFlushers.delete(galleryPublishFlushFn);
-        galleryPublishFlushFn = null;
-      }
-      if (layoutGalleryPatchTimer != null) {
-        window.clearTimeout(layoutGalleryPatchTimer);
-        layoutGalleryPatchTimer = null;
-      }
-      if (layoutFontPatchTimer != null) {
-        window.clearTimeout(layoutFontPatchTimer);
-        layoutFontPatchTimer = null;
+      if (galleryLayoutSaveEntry) {
+        galleryLayoutSaveRegistry.delete(galleryLayoutSaveEntry);
+        galleryLayoutSaveEntry = null;
       }
       header.removeEventListener("mousedown", onHeaderMouseDown);
       window.removeEventListener("mousemove", onDragMove);

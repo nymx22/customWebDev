@@ -1,17 +1,90 @@
 /* Shown only when html.staging is set by lib/staging/staging.js (?staging=1 in URL). Live loads this file but never gets html.staging, so no badge. */
 /* Official deploy (`data-official-live="true"` or `1` on <html>): no staging.js UI — see lib/staging/staging.js */
 
+@import url("./staging-chrome-bw.css");
+
 /* Toolbar height: default until `staging.js` sets `--staging-status-bar-height` from measured #staging-status-bar. */
 html.staging {
   --staging-status-bar-height: 2.75rem;
+  /* Usable page height below the fixed bar (updated on resize in `staging.js`). */
+  --staging-viewport-fill: calc(100dvh - var(--staging-status-bar-height, 2.75rem));
   /* Frame + draggable gallery: label row above in-root content (grid overlay, strip, zoom layers). */
   --staging-chrome-above-content-z: 20;
+  height: auto;
+  min-height: 100%;
+  overflow-x: clip;
+  overflow-y: auto;
 }
 
 /* Push all page content below the fixed staging toolbar (see sync in `staging.js`). */
+
 html.staging body {
   padding-top: var(--staging-status-bar-height);
   box-sizing: border-box;
+  min-height: var(--staging-viewport-fill);
+  height: auto;
+  max-height: none;
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+/* Live homepage / project pages lock to 100dvh + overflow:hidden; staging shows the full document. */
+@media (min-width: 1024px) {
+  html.staging:has(body.page-home) {
+    height: auto;
+    overflow-y: auto;
+  }
+
+  html.staging body.page-home {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* Frame WYSIWYG: same 100dvh placement box as live (body may still scroll). */
+  html.staging body.page-home main.portfolio.column-layout--rows-2.page-home-main {
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 900px) {
+  html.staging:has(body.page-home),
+  html.staging:has(body.page-farewell-mr-fuji) {
+    height: auto;
+    overflow-y: auto;
+  }
+
+  html.staging body.page-home,
+  html.staging body.page-farewell-mr-fuji {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior-y: auto;
+  }
+
+  html.staging body.page-home main.portfolio.column-layout--rows-2.page-home-main {
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    overflow: visible;
+  }
+
+  html.staging body.page-farewell-mr-fuji .portfolio,
+  html.staging body.page-farewell-mr-fuji .projects.project-page {
+    min-height: var(--staging-viewport-fill);
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+html.staging .column-layout,
+html.staging .portfolio,
+html.staging .page-main {
+  min-height: var(--staging-viewport-fill);
 }
 
 html.staging .staging-status-bar {
@@ -37,7 +110,8 @@ html.staging .staging-mode-label,
 html.staging .staging-publish__btn,
 html.staging .staging-gallery-publish__btn,
 html.staging .staging-structure-toggle,
-html.staging .staging-official-live-toggle {
+html.staging .staging-official-live-toggle,
+html.staging .staging-chrome-theme-toggle {
   opacity: 0.5;
   transition: opacity 0.15s ease;
 }
@@ -51,7 +125,9 @@ html.staging .staging-gallery-publish__btn:focus-visible,
 html.staging .staging-structure-toggle:hover,
 html.staging .staging-structure-toggle:focus-visible,
 html.staging .staging-official-live-toggle:hover,
-html.staging .staging-official-live-toggle:focus-visible {
+html.staging .staging-official-live-toggle:focus-visible,
+html.staging .staging-chrome-theme-toggle:hover,
+html.staging .staging-chrome-theme-toggle:focus-visible {
   opacity: 1;
 }
 
@@ -478,6 +554,12 @@ html.staging .staging-site-structure-panel {
   overflow: hidden;
 }
 
+html.staging .staging-site-structure-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 html.staging .staging-site-structure-panel[hidden] {
   display: none !important;
 }
@@ -709,6 +791,109 @@ html.staging .staging-site-structure-panel__li-cancel {
 html.staging .staging-site-structure-panel__li-cancel {
   background: rgba(60, 60, 70, 0.5);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+html.staging .staging-site-structure-panel__pages-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+html.staging .staging-pages-tree__toolbar {
+  margin-bottom: 8px;
+}
+
+html.staging .staging-pages-tree__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+html.staging .staging-pages-tree__group {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+html.staging .staging-pages-tree__group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+html.staging .staging-pages-tree__group-label {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+html.staging .staging-pages-tree__ungrouped-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+html.staging .staging-pages-tree__page .staging-site-structure-panel__li-view {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+html.staging .staging-pages-tree__drag-handle {
+  flex: 0 0 auto;
+  cursor: grab;
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.65;
+  user-select: none;
+}
+
+html.staging .staging-pages-tree__drag-handle:active {
+  cursor: grabbing;
+}
+
+html.staging .staging-pages-tree__page-link {
+  color: rgba(180, 220, 255, 0.98);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+html.staging .staging-pages-tree__page-link:hover {
+  color: #fff;
+}
+
+html.staging .staging-pages-tree__page-link:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+html.staging .staging-pages-tree__is-dragging {
+  opacity: 0.55;
+}
+
+html.staging .staging-pages-tree__dup-btn {
+  flex: 0 0 auto;
+}
+
+html.staging .staging-pages-tree__page--highlight {
+  outline: 2px solid rgba(120, 200, 255, 0.95);
+  outline-offset: 2px;
+  background: rgba(80, 140, 220, 0.18);
+  border-radius: 4px;
+}
+
+html.staging .staging-pages-tree__summary--home {
+  font-weight: 600;
+}
+
+html.staging .staging-pages-tree__drop--over {
+  outline: 1px dashed rgba(255, 255, 255, 0.45);
+  outline-offset: 2px;
 }
 
 html.staging .staging-site-structure-panel__del {

@@ -21,7 +21,49 @@ body.page-home .column-slot--name .site-frame__cell-mount.site-frame__cell-mount
   padding: 0;
 }
 
-/* Padding on the mount insets this wrap (not the img directly). */
+/* Image/shape: padding on the mount (frame-cell-padding.js); wrap fills the inset area. */
+.site-frame__cell-mount--image.site-frame__cell-mount--cell-padding .site-frame__cell-image-wrap,
+.site-frame__cell-mount--image.site-frame__cell-mount--cell-padding .site-frame__cell-shape-wrap {
+  box-sizing: border-box;
+}
+
+.site-frame__cell-mount--stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 3rem;
+  overflow: hidden;
+}
+
+.site-frame__cell-stack {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 3rem;
+}
+
+.site-frame__cell-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  pointer-events: none;
+}
+
+.site-frame__cell-layer-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+}
+
+.site-frame__cell-layer-inner .site-frame__cell-image-wrap,
+.site-frame__cell-layer-inner .site-frame__cell-shape-wrap {
+  width: 100%;
+  height: 100%;
+}
+
 .site-frame__cell-mount--image {
   display: flex;
   flex-direction: column;
@@ -30,6 +72,57 @@ body.page-home .column-slot--name .site-frame__cell-mount.site-frame__cell-mount
   min-height: 0;
   min-width: 0;
   height: 100%;
+}
+
+/* Placement % are relative to this box — must match live 100dvh (see .cursor/rules/frame-placement.mdc). */
+.site-frame--placement-host,
+body.page-home main[data-site-frame-page],
+html.staging body.page-home main[data-site-frame-page].page-home-main {
+  position: relative;
+  box-sizing: border-box;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow: visible;
+}
+
+.site-frame--placement-host > .site-frame__cell-placed-layer {
+  pointer-events: auto;
+}
+
+.site-frame__cell-mount--frame-placed {
+  overflow: visible;
+}
+
+.site-frame__cell-placed-layer {
+  pointer-events: auto;
+}
+
+html.staging
+  .site-frame__cell-mount--frame-placed.site-frame__cell-mount--staging-selected
+  .site-frame__cell-placed-layer,
+html.staging
+  .site-frame__cell-mount--image.site-frame__cell-mount--staging-selected
+  .site-frame__cell-shape-wrap:not(.site-frame__cell-placed-layer),
+html.staging
+  .site-frame__cell-mount--image.site-frame__cell-mount--staging-selected
+  .site-frame__cell-image-wrap:not(.site-frame__cell-placed-layer) {
+  cursor: grab;
+  touch-action: none;
+}
+
+html.staging
+  .site-frame__cell-mount--staging-selected.site-frame__cell-mount--image
+  .site-frame__cell-shape,
+html.staging
+  .site-frame__cell-mount--staging-selected.site-frame__cell-mount--image
+  .site-frame__cell-image {
+  pointer-events: none;
+}
+
+html.staging .site-frame__cell-mount--placement-dragging,
+html.staging .site-frame__cell-mount--placement-dragging .site-frame__cell-placed-layer {
+  cursor: grabbing;
 }
 
 .site-frame__cell-image-wrap {
@@ -44,19 +137,52 @@ body.page-home .column-slot--name .site-frame__cell-mount.site-frame__cell-mount
   overflow: hidden;
 }
 
+/* `display: contents` keeps the img a flex child of `.site-frame__cell-image-wrap`
+   so scale/align match the no-link case (a flex wrapper would shift object-position). */
 .site-frame__cell-image-link {
-  display: flex;
-  flex: 0 0 auto;
-  max-width: 100%;
-  max-height: 100%;
+  display: contents;
   text-decoration: none;
   color: inherit;
+}
+
+.site-frame__cell-image-wrap:has(> .site-frame__cell-image-link:focus-visible) .site-frame__cell-image {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .site-frame__cell-image {
   display: block;
   box-sizing: border-box;
   object-fit: contain;
+}
+
+.site-frame__cell-placed-layer.site-frame__cell-image-wrap {
+  width: auto;
+  height: auto;
+  flex: none;
+}
+
+.site-frame__cell-shape-wrap {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.site-frame__cell-mount--image:not(.site-frame__cell-mount--frame-placed) .site-frame__cell-shape-wrap {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.site-frame__cell-shape {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
 }
 
 .site-frame__cell-text {
@@ -401,6 +527,94 @@ html.staging .staging-frame-panel__cell-pad-sides {
   margin-top: 6px;
 }
 
+html.staging .staging-frame-panel__placement-wrap {
+  margin: 8px 0;
+}
+
+html.staging .staging-frame-panel__placement-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+html.staging .staging-frame-panel__placement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+html.staging .staging-frame-panel__placement-hint {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+html.staging .staging-frame-panel__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid var(--staging-chrome-border-muted, rgba(255, 255, 255, 0.14));
+  border-radius: 4px;
+}
+
+html.staging .staging-frame-panel__stack-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+html.staging .staging-frame-panel__stack-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+html.staging .staging-frame-panel__stack-pick {
+  flex: 1 1 auto;
+  min-width: 6rem;
+  text-align: left;
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 8px;
+  color: inherit;
+  background: var(--staging-chrome-surface, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--staging-chrome-border-dim, rgba(255, 255, 255, 0.22));
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+html.staging .staging-frame-panel__stack-pick.is-selected {
+  border-color: var(--staging-chrome-border, #fff);
+  font-weight: 600;
+}
+
+html.staging .staging-frame-panel__stack-move,
+html.staging .staging-frame-panel__stack-del {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--staging-chrome-border-muted, rgba(255, 255, 255, 0.14));
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+html.staging .staging-frame-panel__stack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 html.staging .staging-frame-panel__frame-meta {
   display: flex;
   flex-direction: column;
@@ -669,6 +883,25 @@ html.staging .staging-frame-panel__link-style-picker {
 
 html.staging .staging-frame-panel__link-style-hex {
   max-width: 7rem;
+}
+
+html.staging .staging-frame-panel__shape-style {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+html.staging .staging-frame-panel__shape-style[hidden] {
+  display: none !important;
+}
+
+html.staging .staging-frame-panel__shape-color-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 html.staging .staging-frame-panel__image-path {

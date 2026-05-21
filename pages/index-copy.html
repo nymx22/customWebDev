@@ -2,9 +2,9 @@
 <html lang="en" data-official-live="false">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="../assets/images/tomato.png" type="image/png">
-  <title>Contact | Calvin Van</title>
+  <title>Office Tomato — Projects</title>
   <meta name="description" content="">
   <script src="../lib/staging/staging.js"></script>
   <script src="../lib/staging/site-structure-pages.js"></script>
@@ -14,26 +14,29 @@
   <link rel="stylesheet" href="../style/frame/site-frame.css">
   <link rel="stylesheet" href="../lib/staging/staging.css">
 </head>
-<body class="page-contact">
-  <!-- 2×1 namecard frame: cell 0 = contact text, cell 1 = shape (SQLite). -->
+<body class="page-home page-home--list">
+  <!-- 2×2 frame: cell 0 = project list (SQLite), cell 3 = photographer image → contact. -->
   <main
-    class="page-main page-main--contact column-layout column-layout--contact"
-    data-site-frame-page="contact"
+    class="portfolio column-layout column-layout--rows-2 page-home-main"
+    data-site-frame-page="index-copy"
   >
-    <div class="column-slot column-slot--contact">
+    <div class="column-slot column-slot--projects">
       <div class="site-frame__cell-mount" data-frame-cell-index="0"></div>
     </div>
     <div class="column-slot column-slot--spacer" aria-hidden="true">
       <div class="site-frame__cell-mount" data-frame-cell-index="1"></div>
     </div>
+    <div class="column-slot column-slot--spacer" aria-hidden="true">
+      <div class="site-frame__cell-mount" data-frame-cell-index="2"></div>
+    </div>
+    <div class="column-slot column-slot--name">
+      <div class="site-frame__cell-mount" data-frame-cell-index="3"></div>
+    </div>
   </main>
 
   <script type="module">
     import { mountSiteFramePage } from "../js/web-dev-base/site-frame.js";
-    mountSiteFramePage({
-      pageName: "contact",
-      rootSelector: "main.page-main--contact",
-    });
+    mountSiteFramePage({ pageName: "index-copy", rootSelector: "main.page-home-main" });
   </script>
 </body>
 </html>

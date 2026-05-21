@@ -99,3 +99,10 @@ Static deploy (Option B — bake DB to JSON):
   Staging **Publish** also calls POST /api/export-layout after saving SQLite.
 
   On **official-live** pages, the site loads baked JSON from data/layout/ (see data/layout/README.txt and js/web-dev-base/layout-baked.js). No Python API is required on the public host — deploy static files + data/layout/ only.
+
+CI (GitHub Actions):
+
+  npm test                  — frame placement % math (lib/tests/frame-placement.test.mjs)
+  npm run test:layout-parity — export_layout.py then compare SQLite vs data/layout/frame/*.json
+
+  Workflow: .github/workflows/ci.yml (push/PR to main or master).
