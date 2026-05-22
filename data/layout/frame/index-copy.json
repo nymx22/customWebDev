@@ -15,7 +15,7 @@
     "rowCount": 2,
     "label": "project",
     "gridGap": {
-      "topPct": 8.0,
+      "topPct": 5.5,
       "rightPct": 0.0,
       "bottomPct": 0.0,
       "leftPct": 15.0
@@ -68,7 +68,8 @@
           },
           {
             "type": "text",
-            "value": "Farewell, Mr. Fuji"
+            "value": "Farewell, Mr. Fuji",
+            "href": "farewell-mr-fuji.html"
           }
         ],
         "linkStyle": {
@@ -121,8 +122,8 @@
         "maxWidth": "",
         "scalePct": 15,
         "linkHref": "contact.html",
-        "placementLeftPct": 81.0,
-        "placementTopPct": 88.5
+        "placementLeftPct": 80.9,
+        "placementTopPct": 92.2
       }
     }
   ]

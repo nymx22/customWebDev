@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -40,6 +41,52 @@ def _connect() -> sqlite3.Connection:
     con = sqlite3.connect(str(DB_PATH))
     con.row_factory = sqlite3.Row
     return con
+
+
+_HTML_TAG_RE = re.compile(r"<html\b([^>]*)>", re.IGNORECASE)
+_OFFICIAL_LIVE_ATTR_RE = re.compile(
+    r'\sdata-official-live\s*=\s*["\'][^"\']*["\']',
+    re.IGNORECASE,
+)
+
+
+def _html_uses_staging(text: str) -> bool:
+    return "lib/staging/staging.js" in text
+
+
+def _mark_html_official_live(path: Path) -> bool:
+    """Set data-official-live=\"true\" so live loads hide the top-left Live badge."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if not _html_uses_staging(raw):
+        return False
+
+    def repl_tag(m: re.Match[str]) -> str:
+        attrs = m.group(1)
+        attrs = _OFFICIAL_LIVE_ATTR_RE.sub("", attrs)
+        return f'<html data-official-live="true"{attrs}>'
+
+    updated = _HTML_TAG_RE.sub(repl_tag, raw, count=1)
+    if updated == raw:
+        return False
+    path.write_text(updated, encoding="utf-8")
+    return True
+
+
+def mark_site_pages_official_live(repo_root: Path | None = None) -> list[str]:
+    """After export: mark staging HTML as official-live (no Live / Staging corner badges on deploy)."""
+    root = repo_root or REPO_ROOT
+    changed: list[str] = []
+    candidates = [root / "index.html", root / "mobile-view-index.html"]
+    candidates.extend(sorted((root / "pages").glob("*.html")))
+    for path in candidates:
+        if not path.is_file():
+            continue
+        if _mark_html_official_live(path):
+            changed.append(str(path.relative_to(root)))
+    return changed
 
 
 def export_layout(out_dir: Path | None = None) -> dict:
@@ -117,11 +164,14 @@ def export_layout(out_dir: Path | None = None) -> dict:
     finally:
         con.close()
 
+    official_live_html = mark_site_pages_official_live(REPO_ROOT)
+
     return {
         "ok": True,
         "outDir": str(target.relative_to(REPO_ROOT)) if target.is_relative_to(REPO_ROOT) else str(target),
         "frames": len(frame_pages),
         "galleries": len(gallery_exports),
+        "officialLiveHtml": official_live_html,
     }
 
 
@@ -134,8 +184,12 @@ def main() -> int:
     except OSError as e:
         print(f"Export failed: {e}", file=sys.stderr)
         return 1
+    html_note = ""
+    n_html = len(summary.get("officialLiveHtml") or [])
+    if n_html:
+        html_note = f", marked {n_html} HTML file(s) official-live (no Live badge)"
     print(
-        f"OK exported {summary['frames']} frame(s), {summary['galleries']} gallery layout(s) → {summary['outDir']}/",
+        f"OK exported {summary['frames']} frame(s), {summary['galleries']} gallery layout(s) → {summary['outDir']}/{html_note}",
     )
     return 0
 
