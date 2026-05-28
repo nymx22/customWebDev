@@ -670,7 +670,9 @@ export async function createDraggableGallery(root, options) {
   const showStagingGalleryToolbar =
     opts.stagingGalleryToolbar !== false && isHtmlStagingEnabled();
 
-  const layoutSource = resolveGalleryLayoutSource(opts);
+  const layoutSource = resolveGalleryLayoutSource(opts, {
+    staging: isHtmlStagingEnabled(),
+  });
   const layoutApiBaseResolved =
     layoutSource && layoutSource.type === "api" ? layoutSource.base : null;
   const layoutPageName =
@@ -891,6 +893,7 @@ export async function createDraggableGallery(root, options) {
         layoutPageName,
         layoutGalleryKey,
         opts,
+        { staging: isHtmlStagingEnabled() },
       );
       if (!layoutDbPayload) {
         layoutLayoutFetchError =

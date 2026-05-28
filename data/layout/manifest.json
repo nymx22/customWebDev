@@ -1,12 +1,12 @@
 {
-  "exportedAt": "2026-05-22T05:17:07Z",
+  "exportedAt": "2026-05-25T21:12:44Z",
   "sourceDb": "lib/db/customdev.db",
   "homePage": "index",
   "homePageId": null,
   "frames": [
     "contact",
     "index",
-    "index-copy"
+    "projects"
   ],
   "galleries": [
     {
@@ -22,7 +22,7 @@
       "galleryKey": "default"
     },
     {
-      "page": "mobile-view-index-copy",
+      "page": "mobile-view-projects",
       "galleryKey": "default"
     }
   ]

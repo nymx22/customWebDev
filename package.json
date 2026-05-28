@@ -4,8 +4,10 @@
   "type": "module",
   "scripts": {
     "dev:api": "python3 server/dev_api.py",
+    "setup:layout": "python3 lib/db/setup_layout.py",
     "export:layout": "python3 lib/db/export_layout.py",
-    "import:layout": "python3 lib/db/import_frame_json.py",
+    "import:layout": "python3 lib/db/import_layout_from_baked.py",
+    "import:layout:frame": "python3 lib/db/import_frame_json.py",
     "publish:bake": "python3 lib/db/export_layout.py",
     "test": "node --test lib/tests/frame-placement.test.mjs",
     "test:layout-parity": "node lib/tests/layout-export-parity.mjs"

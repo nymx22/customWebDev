@@ -217,11 +217,29 @@ export async function fetchBakedGalleryLayout(pageName, galleryKey) {
  * @param {{ layoutBaked?: boolean }} [opts]
  * @returns {boolean}
  */
+/**
+ * @returns {boolean}
+ */
+export function isHtmlStagingDocument() {
+  try {
+    return (
+      typeof document !== "undefined" &&
+      document.documentElement.classList.contains("staging")
+    );
+  } catch (_e) {
+    return false;
+  }
+}
+
 export function shouldUseBakedLayout(opts) {
   if (opts && opts.layoutBaked === false) {
     return false;
   }
   if (opts && opts.layoutBaked === true) {
+    return true;
+  }
+  /* Non-staging: committed data/layout/ only (matches GitHub Pages). */
+  if (!isHtmlStagingDocument()) {
     return true;
   }
   return isOfficialLiveDocument();
@@ -239,12 +257,11 @@ export function resolveGalleryLayoutSource(opts, ctx = {}) {
   if (opts && typeof opts.layoutApiBase === "string" && opts.layoutApiBase.trim()) {
     return { type: "api", base: opts.layoutApiBase.trim().replace(/\/$/, "") };
   }
-  if (ctx.staging === false) {
-    if (shouldUseBakedLayout(opts)) {
-      const baked = resolveBakedLayoutBase();
-      return baked ? { type: "baked", base: baked } : null;
-    }
-    return null;
+  const staging =
+    ctx.staging === true || (ctx.staging !== false && isHtmlStagingDocument());
+  if (!staging) {
+    const baked = resolveBakedLayoutBase();
+    return baked ? { type: "baked", base: baked } : null;
   }
   if (typeof document !== "undefined" && isOfficialLiveDocument()) {
     const baked = resolveBakedLayoutBase();

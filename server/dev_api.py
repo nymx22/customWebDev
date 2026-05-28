@@ -769,7 +769,7 @@ def _sanitize_image_scale_pct(raw: object) -> int:
         n = int(raw if raw is not None else 100)
     except (TypeError, ValueError):
         n = 100
-    return max(5, min(250, n))
+    return max(1, min(250, n))
 
 
 _OBJECT_FIT_ALLOWED = frozenset({"contain", "cover", "fill", "scale-down", "none"})
@@ -885,11 +885,27 @@ def _sanitize_shape_style(raw: object) -> dict:
         fill_on = fill_enabled is not False
     stroke_enabled = bool(raw.get("strokeEnabled", raw.get("stroke_enabled")))
     mode_raw = str(raw.get("sizeMode") or raw.get("size_mode") or "keep_ratio").strip().lower()
-    size_mode = "stretch_grid" if mode_raw == "stretch_grid" else "keep_ratio"
+    if mode_raw in ("stretch_grid", "stretch"):
+        size_mode = "stretch_grid"
+    elif mode_raw in ("fixed_px", "fixedpx", "fixed"):
+        size_mode = "fixed_px"
+    else:
+        size_mode = "keep_ratio"
     width_pct = _sanitize_image_scale_pct(raw.get("widthPct", raw.get("width_pct") or 40))
     height_pct = _sanitize_image_scale_pct(raw.get("heightPct", raw.get("height_pct") or 40))
+    width_px = _clamp_int(raw.get("widthPx", raw.get("width_px")), 1, 4000, 280)
+    height_px = _clamp_int(raw.get("heightPx", raw.get("height_px")), 1, 4000, 120)
     if size_mode == "keep_ratio":
-        scale = max(width_pct, height_pct)
+        try:
+            scale_raw = raw.get("scalePct", raw.get("scale_pct"))
+            if scale_raw is not None and str(scale_raw).strip() != "":
+                scale = _sanitize_image_scale_pct(scale_raw)
+            else:
+                scale = _sanitize_image_scale_pct(
+                    raw.get("widthPct", raw.get("width_pct", height_pct)),
+                )
+        except (TypeError, ValueError):
+            scale = _sanitize_image_scale_pct(width_pct)
         width_pct = scale
         height_pct = scale
     st = {
@@ -897,6 +913,8 @@ def _sanitize_shape_style(raw: object) -> dict:
         "sizeMode": size_mode,
         "widthPct": width_pct,
         "heightPct": height_pct,
+        "widthPx": width_px,
+        "heightPx": height_px,
         "objectAlign": _sanitize_object_align(raw.get("objectAlign", raw.get("object_align"))),
         "rotationDeg": _clamp_int(raw.get("rotationDeg", raw.get("rotation_deg")), 0, 360, 0),
         "cornerRadiusPct": _clamp_int(
@@ -928,6 +946,8 @@ def _sanitize_shape_style(raw: object) -> dict:
             2,
         ),
         "linkHref": _sanitize_nav_url(str(raw.get("linkHref", "") or raw.get("link_href", "") or "")),
+        "textPadding": _sanitize_padding_css(str(raw.get("textPadding", raw.get("text_padding", "")) or "")),
+        "textColor": _sanitize_shape_color(str(raw.get("textColor", raw.get("text_color", "")) or "")),
     }
     left, top = _placement_from_style(raw)
     return _placement_on_style_dict(st, left, top)
@@ -964,6 +984,10 @@ def _shape_style_from_db_row(shape_row: sqlite3.Row | None) -> dict:
             str(shape_row["link_href"] if "link_href" in srk else "")
         ),
     }
+    if "width_px" in srk:
+        raw_shape["widthPx"] = int(shape_row["width_px"] or 280)
+    if "height_px" in srk:
+        raw_shape["heightPx"] = int(shape_row["height_px"] or 120)
     pl, pt = _placement_from_row(shape_row, set(srk))
     if pl is not None and pt is not None:
         raw_shape["placementLeftPct"] = pl
@@ -1035,6 +1059,9 @@ def _sanitize_body_blocks(
                 block: dict = {"type": "text", "value": v}
                 if href:
                     block["href"] = href
+                variant = str(item.get("variant", "") or "").strip().lower()
+                if variant in ("title", "sub"):
+                    block["variant"] = variant
                 blocks.append(block)
             elif t == "link":
                 href = _sanitize_nav_url(str(item.get("href", "") or item.get("url", "") or ""))
@@ -1168,9 +1195,41 @@ def _sanitize_stack_layers(raw: object) -> list[dict]:
                 "linkHref": _sanitize_nav_url(str(is_data.get("linkHref") or "")),
             }
         elif lt == "shape":
-            layer["body"] = ""
             ins = item.get("shapeStyle") if isinstance(item.get("shapeStyle"), dict) else {}
             layer["shapeStyle"] = _sanitize_shape_style(ins)
+            ts = item.get("textStyle") if isinstance(item.get("textStyle"), dict) else {}
+            layer["body"] = str(item.get("body") or "")
+            body_blocks_raw = ts.get("bodyBlocks")
+            blocks, plain_body = _sanitize_body_blocks(
+                body_blocks_raw if body_blocks_raw is not None else [],
+                layer["body"],
+                "",
+                "",
+            )
+            layer["body"] = plain_body
+            if plain_body.strip() or blocks:
+                try:
+                    fs = int(ts.get("fontSize", 16) or 16)
+                except (TypeError, ValueError):
+                    fs = 16
+                try:
+                    lh = int(ts.get("lineHeightPct", 100) or 100)
+                except (TypeError, ValueError):
+                    lh = 100
+                layer["textStyle"] = {
+                    "fontFamily": _sanitize_font_family(str(ts.get("fontFamily") or "")),
+                    "fontSize": max(8, min(288, fs)),
+                    "lineHeightPct": max(50, min(250, lh)),
+                    "padding": _sanitize_padding_css(str(ts.get("padding") or "")),
+                    "navUrl": "",
+                    "navLabel": "",
+                    "bodyBlocks": blocks,
+                    "linkStyle": _sanitize_link_style(
+                        ts.get("linkStyle") if isinstance(ts.get("linkStyle"), dict) else {},
+                    ),
+                }
+            else:
+                layer["body"] = ""
         else:
             layer["body"] = str(item.get("body") or "")
             ts = item.get("textStyle") if isinstance(item.get("textStyle"), dict) else {}
@@ -1466,6 +1525,9 @@ def _sync_frame_cell_shape(con: sqlite3.Connection, cell_id: int, data: dict) ->
     if "placement_left_pct" in shape_cols and "placement_top_pct" in shape_cols:
         shape_col_names.extend(["placement_left_pct", "placement_top_pct"])
         shape_vals.extend([pl, pt])
+    if "width_px" in shape_cols and "height_px" in shape_cols:
+        shape_col_names.extend(["width_px", "height_px"])
+        shape_vals.extend([st["widthPx"], st["heightPx"]])
     ph = ", ".join("?" for _ in shape_vals)
     con.execute(
         f"INSERT INTO frame_cell_shape ({', '.join(shape_col_names)}) VALUES ({ph})",

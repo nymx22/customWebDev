@@ -1,6 +1,6 @@
 /**
  * Inline text + links for frame text cells (`frame_cell_text.body_blocks` JSON).
- * @typedef {{ type: 'text', value: string, href?: string }} TextBlock
+ * @typedef {{ type: 'text', value: string, href?: string, variant?: 'title' | 'sub' }} TextBlock
  * @typedef {{ type: 'link', href: string, label: string }} LinkBlock
  * @typedef {TextBlock | LinkBlock} BodyBlock
  */
@@ -244,6 +244,21 @@ export function renderBodyBlocksIntoParagraph(p, blocks) {
     if (b.type !== "text") {
       continue;
     }
+    const variant = b.variant === "title" || b.variant === "sub" ? b.variant : "";
+    if (variant) {
+      const line = document.createElement("span");
+      line.className = `site-frame__namecard-line site-frame__namecard-line--${variant}`;
+      if (b.href) {
+        const a = document.createElement("a");
+        wireFrameTextLink(a, b.href);
+        a.textContent = b.value;
+        line.appendChild(a);
+      } else {
+        line.textContent = b.value;
+      }
+      p.appendChild(line);
+      continue;
+    }
     if (i > 0) {
       p.appendChild(document.createElement("br"));
     }
@@ -256,6 +271,20 @@ export function renderBodyBlocksIntoParagraph(p, blocks) {
       appendTextWithBreaks(p, b.value);
     }
   }
+}
+
+/**
+ * @param {BodyBlock[]} blocks
+ * @returns {boolean}
+ */
+export function bodyBlocksUseNamecardLayout(blocks) {
+  const list = normalizeBodyBlocks(blocks);
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].variant === "title" || list[i].variant === "sub") {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

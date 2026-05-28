@@ -356,6 +356,130 @@ def migrate(con: sqlite3.Connection) -> list[str]:
         con.execute("ALTER TABLE frame_cell_shape__scale5 RENAME TO frame_cell_shape")
         con.execute("PRAGMA foreign_keys=ON")
         msgs.append("frame_cell_shape: 5–250% range, size_mode, keep_ratio migration")
+
+    shape_sql_row3 = con.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='frame_cell_shape'",
+    ).fetchone()
+    shape_sql3 = str(shape_sql_row3[0] or "") if shape_sql_row3 else ""
+    shape_sql3_compact = shape_sql3.replace(" ", "") if shape_sql3 else ""
+    if shape_sql3 and "width_pct>=5" in shape_sql3_compact and "width_pct>=1" not in shape_sql3_compact:
+        con.execute("PRAGMA foreign_keys=OFF")
+        con.execute(
+            """
+            CREATE TABLE frame_cell_shape__pct1 (
+              frame_cell_id INTEGER PRIMARY KEY REFERENCES frame_cell (id) ON DELETE CASCADE,
+              shape_kind TEXT NOT NULL DEFAULT 'square'
+                CHECK (shape_kind IN ('square', 'triangle', 'circle')),
+              width_pct INTEGER NOT NULL DEFAULT 40 CHECK (width_pct >= 1 AND width_pct <= 250),
+              height_pct INTEGER NOT NULL DEFAULT 40 CHECK (height_pct >= 1 AND height_pct <= 250),
+              size_mode TEXT NOT NULL DEFAULT 'keep_ratio'
+                CHECK (size_mode IN ('keep_ratio', 'stretch_grid')),
+              object_align TEXT NOT NULL DEFAULT 'center'
+                CHECK (
+                  object_align IN (
+                    'center', 'top', 'bottom', 'left', 'right',
+                    'top-left', 'top-right', 'bottom-left', 'bottom-right'
+                  )
+                ),
+              rotation_deg INTEGER NOT NULL DEFAULT 0 CHECK (rotation_deg >= 0 AND rotation_deg <= 360),
+              corner_radius_pct INTEGER NOT NULL DEFAULT 0 CHECK (corner_radius_pct >= 0 AND corner_radius_pct <= 50),
+              fill_enabled INTEGER NOT NULL DEFAULT 1 CHECK (fill_enabled IN (0, 1)),
+              fill_color TEXT NOT NULL DEFAULT '#000000',
+              fill_opacity_pct INTEGER NOT NULL DEFAULT 100 CHECK (fill_opacity_pct >= 0 AND fill_opacity_pct <= 100),
+              stroke_enabled INTEGER NOT NULL DEFAULT 0 CHECK (stroke_enabled IN (0, 1)),
+              stroke_color TEXT NOT NULL DEFAULT '#000000',
+              stroke_opacity_pct INTEGER NOT NULL DEFAULT 100 CHECK (stroke_opacity_pct >= 0 AND stroke_opacity_pct <= 100),
+              stroke_width_px INTEGER NOT NULL DEFAULT 2 CHECK (stroke_width_px >= 0 AND stroke_width_px <= 48),
+              link_href TEXT NOT NULL DEFAULT '',
+              placement_left_pct REAL,
+              placement_top_pct REAL
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO frame_cell_shape__pct1 (
+              frame_cell_id, shape_kind, width_pct, height_pct, size_mode, object_align,
+              rotation_deg, corner_radius_pct, fill_enabled, fill_color, fill_opacity_pct,
+              stroke_enabled, stroke_color, stroke_opacity_pct, stroke_width_px, link_href,
+              placement_left_pct, placement_top_pct
+            )
+            SELECT
+              frame_cell_id, shape_kind,
+              CASE WHEN width_pct < 1 THEN 1 WHEN width_pct > 250 THEN 250 ELSE width_pct END,
+              CASE WHEN height_pct < 1 THEN 1 WHEN height_pct > 250 THEN 250 ELSE height_pct END,
+              size_mode, object_align, rotation_deg, corner_radius_pct, fill_enabled, fill_color,
+              fill_opacity_pct, stroke_enabled, stroke_color, stroke_opacity_pct,
+              stroke_width_px, link_href, placement_left_pct, placement_top_pct
+            FROM frame_cell_shape
+            """
+        )
+        con.execute("DROP TABLE frame_cell_shape")
+        con.execute("ALTER TABLE frame_cell_shape__pct1 RENAME TO frame_cell_shape")
+        con.execute("PRAGMA foreign_keys=ON")
+        msgs.append("frame_cell_shape: widened width_pct/height_pct range to 1–250")
+
+    shape_sql_row4 = con.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='frame_cell_shape'",
+    ).fetchone()
+    shape_sql4 = str(shape_sql_row4[0] or "") if shape_sql_row4 else ""
+    if shape_sql4 and "'fixed_px'" not in shape_sql4:
+        con.execute("PRAGMA foreign_keys=OFF")
+        con.execute(
+            """
+            CREATE TABLE frame_cell_shape__fixed_px (
+              frame_cell_id INTEGER PRIMARY KEY REFERENCES frame_cell (id) ON DELETE CASCADE,
+              shape_kind TEXT NOT NULL DEFAULT 'square'
+                CHECK (shape_kind IN ('square', 'triangle', 'circle')),
+              width_pct INTEGER NOT NULL DEFAULT 40 CHECK (width_pct >= 1 AND width_pct <= 250),
+              height_pct INTEGER NOT NULL DEFAULT 40 CHECK (height_pct >= 1 AND height_pct <= 250),
+              size_mode TEXT NOT NULL DEFAULT 'keep_ratio'
+                CHECK (size_mode IN ('keep_ratio', 'stretch_grid', 'fixed_px')),
+              width_px INTEGER NOT NULL DEFAULT 280 CHECK (width_px >= 1 AND width_px <= 4000),
+              height_px INTEGER NOT NULL DEFAULT 120 CHECK (height_px >= 1 AND height_px <= 4000),
+              object_align TEXT NOT NULL DEFAULT 'center'
+                CHECK (
+                  object_align IN (
+                    'center', 'top', 'bottom', 'left', 'right',
+                    'top-left', 'top-right', 'bottom-left', 'bottom-right'
+                  )
+                ),
+              rotation_deg INTEGER NOT NULL DEFAULT 0 CHECK (rotation_deg >= 0 AND rotation_deg <= 360),
+              corner_radius_pct INTEGER NOT NULL DEFAULT 0 CHECK (corner_radius_pct >= 0 AND corner_radius_pct <= 50),
+              fill_enabled INTEGER NOT NULL DEFAULT 1 CHECK (fill_enabled IN (0, 1)),
+              fill_color TEXT NOT NULL DEFAULT '#000000',
+              fill_opacity_pct INTEGER NOT NULL DEFAULT 100 CHECK (fill_opacity_pct >= 0 AND fill_opacity_pct <= 100),
+              stroke_enabled INTEGER NOT NULL DEFAULT 0 CHECK (stroke_enabled IN (0, 1)),
+              stroke_color TEXT NOT NULL DEFAULT '#000000',
+              stroke_opacity_pct INTEGER NOT NULL DEFAULT 100 CHECK (stroke_opacity_pct >= 0 AND stroke_opacity_pct <= 100),
+              stroke_width_px INTEGER NOT NULL DEFAULT 2 CHECK (stroke_width_px >= 0 AND stroke_width_px <= 48),
+              link_href TEXT NOT NULL DEFAULT '',
+              placement_left_pct REAL,
+              placement_top_pct REAL
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO frame_cell_shape__fixed_px (
+              frame_cell_id, shape_kind, width_pct, height_pct, size_mode, width_px, height_px,
+              object_align, rotation_deg, corner_radius_pct, fill_enabled, fill_color,
+              fill_opacity_pct, stroke_enabled, stroke_color, stroke_opacity_pct, stroke_width_px,
+              link_href, placement_left_pct, placement_top_pct
+            )
+            SELECT
+              frame_cell_id, shape_kind, width_pct, height_pct, size_mode, 280, 120,
+              object_align, rotation_deg, corner_radius_pct, fill_enabled, fill_color,
+              fill_opacity_pct, stroke_enabled, stroke_color, stroke_opacity_pct, stroke_width_px,
+              link_href, placement_left_pct, placement_top_pct
+            FROM frame_cell_shape
+            """
+        )
+        con.execute("DROP TABLE frame_cell_shape")
+        con.execute("ALTER TABLE frame_cell_shape__fixed_px RENAME TO frame_cell_shape")
+        con.execute("PRAGMA foreign_keys=ON")
+        msgs.append("frame_cell_shape: fixed_px size_mode, width_px/height_px columns")
+
     elif _add_column(con, "frame_cell_shape", "size_mode", "TEXT NOT NULL DEFAULT 'keep_ratio'"):
         msgs.append("frame_cell_shape: added column size_mode")
         con.execute(

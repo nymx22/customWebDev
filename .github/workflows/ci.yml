@@ -19,11 +19,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Apply DB migrations
-        run: python3 lib/db/migrate_schema.py
+      - name: Bootstrap local DB from data/layout (not in git)
+        run: npm run setup:layout
 
       - name: Placement unit tests
         run: npm test
 
-      - name: SQLite vs baked layout export parity
+      - name: Baked layout import/export parity
         run: npm run test:layout-parity

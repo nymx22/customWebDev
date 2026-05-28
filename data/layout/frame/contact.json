@@ -11,81 +11,84 @@
   "frame": {
     "id": 12,
     "pageId": 18,
-    "columnCount": 2,
+    "columnCount": 1,
     "rowCount": 1,
     "label": "namecard",
     "gridGap": "",
     "notes": "",
-    "defaultTextFontFamily": "",
-    "defaultTextFontSize": 16
+    "defaultTextFontFamily": "CustomdevAsset_yugothib, sans-serif",
+    "defaultTextFontSize": 15
   },
   "cells": [
     {
       "id": 77,
       "frameId": 12,
       "cellIndex": 0,
-      "contentType": "text",
-      "body": "calvinvan58@gmail.com\ncalvinpony",
-      "cellRole": "",
-      "cellPadding": "",
-      "textStyle": {
-        "fontFamily": "",
-        "fontSize": 16,
-        "lineHeightPct": 140,
-        "padding": "",
-        "navUrl": "",
-        "navLabel": "",
-        "bodyBlocks": [
-          {
-            "type": "text",
-            "value": "calvinvan58@gmail.com",
-            "href": "mailto:calvinvan58@gmail.com"
-          },
-          {
-            "type": "text",
-            "value": "calvinpony",
-            "href": "https://www.instagram.com/calvinpony/"
-          }
-        ],
-        "linkStyle": {
-          "underline": false,
-          "colorInherit": true,
-          "color": "",
-          "hover": true,
-          "hoverColorInherit": false,
-          "hoverColor": "#a6a6a6"
-        }
-      }
-    },
-    {
-      "id": 78,
-      "frameId": 12,
-      "cellIndex": 1,
-      "contentType": "shape",
-      "body": "",
+      "contentType": "stack",
+      "body": "{\"layers\":[{\"type\":\"shape\",\"body\":\"Office Tomato\\nCalvin Van\\nT. 678 – 897 – 9871 @\",\"shapeStyle\":{\"shapeKind\":\"square\",\"sizeMode\":\"fixed_px\",\"widthPx\":220,\"heightPx\":325,\"objectAlign\":\"center\",\"textPadding\":\"28px 20px\",\"textColor\":\"#111111\",\"rotationDeg\":0,\"cornerRadiusPct\":0,\"fillEnabled\":true,\"fillColor\":\"#ffffff\",\"fillOpacityPct\":100,\"strokeEnabled\":false,\"strokeColor\":\"#000000\",\"strokeOpacityPct\":100,\"strokeWidthPx\":2,\"linkHref\":\"\",\"placementLeftPct\":78,\"placementTopPct\":35},\"textStyle\":{\"fontFamily\":\"CustomdevAsset_yugothib, sans-serif\",\"fontSize\":15,\"lineHeightPct\":135,\"padding\":\"\",\"navUrl\":\"\",\"navLabel\":\"\",\"bodyBlocks\":[{\"type\":\"text\",\"value\":\"Office Tomato\",\"variant\":\"title\"},{\"type\":\"text\",\"value\":\"Calvin Van\",\"variant\":\"sub\"},{\"type\":\"text\",\"value\":\"T. 678 – 897 – 9871 @\",\"variant\":\"sub\"}],\"linkStyle\":{\"underline\":false,\"colorInherit\":true,\"color\":\"\",\"hover\":false,\"hoverColorInherit\":true,\"hoverColor\":\"\"}}}]}",
       "cellRole": "",
       "cellPadding": "",
       "textStyle": null,
-      "imageStyle": null,
-      "shapeStyle": {
-        "shapeKind": "square",
-        "sizeMode": "keep_ratio",
-        "widthPct": 32,
-        "heightPct": 32,
-        "objectAlign": "center",
-        "rotationDeg": 0,
-        "cornerRadiusPct": 0,
-        "fillEnabled": true,
-        "fillColor": "#ffffff",
-        "fillOpacityPct": 100,
-        "strokeEnabled": false,
-        "strokeColor": "#000000",
-        "strokeOpacityPct": 100,
-        "strokeWidthPx": 2,
-        "linkHref": "",
-        "placementLeftPct": 72.0,
-        "placementTopPct": 30.5
-      }
+      "layers": [
+        {
+          "type": "shape",
+          "body": "Office Tomato\nCalvin Van\nT. 678 – 897 – 9871 @",
+          "shapeStyle": {
+            "shapeKind": "square",
+            "sizeMode": "fixed_px",
+            "widthPx": 220,
+            "heightPx": 325,
+            "objectAlign": "center",
+            "textPadding": "28px 20px",
+            "textColor": "#111111",
+            "rotationDeg": 0,
+            "cornerRadiusPct": 0,
+            "fillEnabled": true,
+            "fillColor": "#ffffff",
+            "fillOpacityPct": 100,
+            "strokeEnabled": false,
+            "strokeColor": "#000000",
+            "strokeOpacityPct": 100,
+            "strokeWidthPx": 2,
+            "linkHref": "",
+            "placementLeftPct": 78,
+            "placementTopPct": 35
+          },
+          "textStyle": {
+            "fontFamily": "CustomdevAsset_yugothib, sans-serif",
+            "fontSize": 15,
+            "lineHeightPct": 135,
+            "padding": "",
+            "navUrl": "",
+            "navLabel": "",
+            "bodyBlocks": [
+              {
+                "type": "text",
+                "value": "Office Tomato",
+                "variant": "title"
+              },
+              {
+                "type": "text",
+                "value": "Calvin Van",
+                "variant": "sub"
+              },
+              {
+                "type": "text",
+                "value": "T. 678 – 897 – 9871 @",
+                "variant": "sub"
+              }
+            ],
+            "linkStyle": {
+              "underline": false,
+              "colorInherit": true,
+              "color": "",
+              "hover": false,
+              "hoverColorInherit": true,
+              "hoverColor": ""
+            }
+          }
+        }
+      ]
     }
   ]
 }

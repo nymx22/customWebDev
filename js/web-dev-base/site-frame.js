@@ -65,10 +65,10 @@ import { applyGridGapStyles } from "./frame-grid-gap.js";
 import { applyImageGridDimensions } from "./frame-cell-image.js";
 import { clampFrameCellScalePct } from "./frame-cell-scale.js";
 import {
-  createShapeSvgElement,
   normalizeShapeStyle,
   SHAPE_ALIGN_TO_FLEX,
 } from "./frame-cell-shape.js";
+import { createShapeCardElement } from "./frame-shape-text.js";
 import { applyStackLayersToMount, parseStackLayersFromCell } from "./frame-cell-layers.js";
 import { buildTabTextTable } from "./frame-tab-table.js";
 import { STAGING_FRAME_SETTINGS_EVENT, mountFrameStagingTestingGui } from "./staging-gui-settings.js";
@@ -414,21 +414,16 @@ function applyCellToMount(mountEl, cell) {
       wrap.style.justifyContent = flexAlign[1];
     }
 
-    const svg = createShapeSvgElement(ss, mountEl, { relativeToFrame: shapeUsePlacement });
-    const linkHref = sanitizeNavUrl(ss.linkHref);
-    if (linkHref) {
-      const a = document.createElement("a");
-      a.href = linkHref;
-      a.className = "site-frame__cell-image-link";
-      if (/^https?:/i.test(linkHref)) {
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-      }
-      a.appendChild(svg);
-      wrap.appendChild(a);
-    } else {
-      wrap.appendChild(svg);
-    }
+    const card = createShapeCardElement(
+      {
+        shapeStyle: ss,
+        body: (cell && cell.body) || "",
+        textStyle: (cell && cell.textStyle) || null,
+      },
+      mountEl,
+      { relativeToFrame: shapeUsePlacement },
+    );
+    wrap.appendChild(card);
     if (shapeUsePlacement && shapePlacement) {
       applyFramePlacementToWrap(mountEl, wrap, shapePlacement);
     } else {
@@ -549,7 +544,8 @@ export async function mountSiteFramePage(options) {
   async function loadAndApply() {
     /** @type {{ page?: object, frame?: object, cells?: object[] } | null} */
     let data = null;
-    if (api) {
+    /* Live preview: baked JSON only (deploy parity). Staging: SQLite via API. */
+    if (isHtmlStaging() && api) {
       try {
         const res = await fetch(`${api}/api/frame?page=${encodeURIComponent(pageName)}`, {
           mode: "cors",

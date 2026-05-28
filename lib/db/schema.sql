@@ -117,8 +117,8 @@ CREATE TABLE IF NOT EXISTS frame_cell_image (
     ),
   max_width TEXT NOT NULL DEFAULT '',
   link_href TEXT NOT NULL DEFAULT '',
-  -- Uniform scale within the cell mount (5–250, default 100 = 100%).
-  scale_pct INTEGER NOT NULL DEFAULT 100 CHECK (scale_pct >= 5 AND scale_pct <= 250),
+  -- Uniform scale within the cell mount (1–250, default 100 = 100%).
+  scale_pct INTEGER NOT NULL DEFAULT 100 CHECK (scale_pct >= 1 AND scale_pct <= 250),
   -- Center position on frame grid (% of `[data-site-frame-page]`); NULL = legacy in-cell layout.
   placement_left_pct REAL,
   placement_top_pct REAL
@@ -129,10 +129,12 @@ CREATE TABLE IF NOT EXISTS frame_cell_shape (
   frame_cell_id INTEGER PRIMARY KEY REFERENCES frame_cell (id) ON DELETE CASCADE,
   shape_kind TEXT NOT NULL DEFAULT 'square'
     CHECK (shape_kind IN ('square', 'triangle', 'circle')),
-  width_pct INTEGER NOT NULL DEFAULT 40 CHECK (width_pct >= 5 AND width_pct <= 250),
-  height_pct INTEGER NOT NULL DEFAULT 40 CHECK (height_pct >= 5 AND height_pct <= 250),
+  width_pct INTEGER NOT NULL DEFAULT 40 CHECK (width_pct >= 1 AND width_pct <= 250),
+  height_pct INTEGER NOT NULL DEFAULT 40 CHECK (height_pct >= 1 AND height_pct <= 250),
   size_mode TEXT NOT NULL DEFAULT 'keep_ratio'
-    CHECK (size_mode IN ('keep_ratio', 'stretch_grid')),
+    CHECK (size_mode IN ('keep_ratio', 'stretch_grid', 'fixed_px')),
+  width_px INTEGER NOT NULL DEFAULT 280 CHECK (width_px >= 1 AND width_px <= 4000),
+  height_px INTEGER NOT NULL DEFAULT 120 CHECK (height_px >= 1 AND height_px <= 4000),
   object_align TEXT NOT NULL DEFAULT 'center'
     CHECK (
       object_align IN (

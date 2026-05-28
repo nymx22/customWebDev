@@ -1,0 +1,10 @@
+# Local layout scratch pad (git truth is data/layout/)
+lib/db/customdev.db
+lib/db/customdev.db-journal
+lib/db/*.db-shm
+lib/db/*.db-wal
+
+# OS / editor
+.DS_Store
+*.swp
+*~

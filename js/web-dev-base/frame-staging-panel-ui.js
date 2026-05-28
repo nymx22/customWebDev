@@ -755,6 +755,7 @@ export function createFrameCellStagingUi(deps) {
     [
       ["keep_ratio", "Keep shape ratio"],
       ["stretch_grid", "Stretch to grid"],
+      ["fixed_px", "Fixed px (shrink to fit)"],
     ].forEach(([v, lab]) => {
       const o = document.createElement("option");
       o.value = v;
@@ -801,6 +802,33 @@ export function createFrameCellStagingUi(deps) {
 
     const shapeWidthIn = makeShapeSizeField("Width %");
     const shapeHeightIn = makeShapeSizeField("Height %");
+
+    const shapePxLab = document.createElement("div");
+    shapePxLab.className = "staging-frame-panel__field-label";
+    shapePxLab.textContent = "Width / height (px at design size; shrinks on small viewports)";
+    const shapePxRow = document.createElement("div");
+    shapePxRow.className = "staging-frame-panel__placement-row";
+
+    function makeShapePxField(caption) {
+      const col = document.createElement("div");
+      col.className = "staging-frame-panel__figma-field";
+      const cap = document.createElement("span");
+      cap.className = "staging-frame-panel__figma-caption";
+      cap.textContent = caption;
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.className = "staging-frame-panel__input staging-frame-panel__input--gap-pct";
+      inp.min = "1";
+      inp.max = "4000";
+      inp.step = "1";
+      col.appendChild(cap);
+      col.appendChild(inp);
+      shapePxRow.appendChild(col);
+      return inp;
+    }
+
+    const shapeWidthPxIn = makeShapePxField("Width px");
+    const shapeHeightPxIn = makeShapePxField("Height px");
 
     const shapeRotLab = document.createElement("label");
     shapeRotLab.className = "staging-frame-panel__field-label";
@@ -910,6 +938,8 @@ export function createFrameCellStagingUi(deps) {
     shapeWrap.appendChild(shapeScaleLab);
     shapeWrap.appendChild(shapeSizeLab);
     shapeWrap.appendChild(shapeSizeRow);
+    shapeWrap.appendChild(shapePxLab);
+    shapeWrap.appendChild(shapePxRow);
     shapeWrap.appendChild(shapeAlignLab);
     shapeWrap.appendChild(shapeRotLab);
     shapeWrap.appendChild(shapeRadiusLab);
@@ -926,25 +956,32 @@ export function createFrameCellStagingUi(deps) {
     }
 
     function syncShapeSizeFieldsVisibility() {
-      const keep = shapeSizeModeSel.value === "keep_ratio";
+      const mode = shapeSizeModeSel.value;
+      const keep = mode === "keep_ratio";
+      const fixed = mode === "fixed_px";
       shapeScaleLab.hidden = !keep;
-      shapeSizeLab.hidden = keep;
-      shapeSizeRow.hidden = keep;
+      shapeSizeLab.hidden = keep || fixed;
+      shapeSizeRow.hidden = keep || fixed;
+      shapePxLab.hidden = !fixed;
+      shapePxRow.hidden = !fixed;
     }
 
     function applyShapeSizeModeSwitch() {
       if (shapeSizeModeSel.value === "keep_ratio") {
         const scale = clampFrameCellScalePct(
-          Math.max(Number(shapeWidthIn.value) || 0, Number(shapeHeightIn.value) || 0),
-          Number(shapeScaleIn.value) || 40,
+          shapeScaleIn.value || shapeWidthIn.value || shapeHeightIn.value,
+          Number(shapeScaleIn.value) || Number(shapeWidthIn.value) || 40,
         );
         shapeScaleIn.value = String(scale);
         shapeWidthIn.value = String(scale);
         shapeHeightIn.value = String(scale);
       } else {
-        const scale = clampFrameCellScalePct(shapeScaleIn.value, Number(shapeWidthIn.value) || 40);
-        shapeWidthIn.value = String(scale);
-        shapeHeightIn.value = String(scale);
+        shapeWidthIn.value = String(
+          clampFrameCellScalePct(shapeWidthIn.value, Number(shapeWidthIn.value) || 40),
+        );
+        shapeHeightIn.value = String(
+          clampFrameCellScalePct(shapeHeightIn.value, Number(shapeHeightIn.value) || 40),
+        );
       }
       syncShapeSizeFieldsVisibility();
     }
@@ -974,6 +1011,8 @@ export function createFrameCellStagingUi(deps) {
       shapeScaleIn.value = String(shapeScalePctFromStyle(s));
       shapeWidthIn.value = String(s.widthPct);
       shapeHeightIn.value = String(s.heightPct);
+      shapeWidthPxIn.value = String(s.widthPx);
+      shapeHeightPxIn.value = String(s.heightPx);
       shapeAlignSel.value = s.objectAlign;
       shapeRotIn.value = String(s.rotationDeg);
       shapeRadiusIn.value = String(s.cornerRadiusPct);
@@ -999,13 +1038,17 @@ export function createFrameCellStagingUi(deps) {
     }
 
     function readShapeStyleFromForm() {
-      const sizeMode = shapeSizeModeSel.value === "stretch_grid" ? "stretch_grid" : "keep_ratio";
+      const modeRaw = shapeSizeModeSel.value;
+      const sizeMode =
+        modeRaw === "stretch_grid" ? "stretch_grid" : modeRaw === "fixed_px" ? "fixed_px" : "keep_ratio";
       const scale = clampFrameCellScalePct(shapeScaleIn.value, 40);
       return normalizeShapeStyle({
         shapeKind: shapeKindSel.value,
         sizeMode,
         widthPct: sizeMode === "keep_ratio" ? scale : shapeWidthIn.value,
         heightPct: sizeMode === "keep_ratio" ? scale : shapeHeightIn.value,
+        widthPx: shapeWidthPxIn.value,
+        heightPx: shapeHeightPxIn.value,
         objectAlign: shapeAlignSel.value,
         rotationDeg: shapeRotIn.value,
         cornerRadiusPct: shapeRadiusIn.value,
@@ -1054,6 +1097,8 @@ export function createFrameCellStagingUi(deps) {
       shapeAlignSel,
       shapeWidthIn,
       shapeHeightIn,
+      shapeWidthPxIn,
+      shapeHeightPxIn,
       shapeRotIn,
       shapeRadiusIn,
       shapeStrokeWidthIn,
@@ -1189,7 +1234,8 @@ export function createFrameCellStagingUi(deps) {
     function syncTextFieldsVisibility() {
       const ct =
         typeSel.value === "stack" && stackEditor ? stackEditor.getActiveLayerType() : typeSel.value;
-      textWrap.hidden = ct !== "text";
+      const shapeWithText = ct === "shape";
+      textWrap.hidden = ct !== "text" && !shapeWithText;
       imageWrap.hidden = ct !== "image";
       shapeWrap.hidden = ct !== "shape";
       syncPlacementWrapVisibility(ct);
@@ -1206,7 +1252,7 @@ export function createFrameCellStagingUi(deps) {
       const ct =
         stackMode && stackEditor ? stackEditor.getActiveLayerType() : typeSel.value;
       bodyLab.hidden = stackMode || ct === "empty" || ct === "text" || ct === "image" || ct === "shape";
-      bodyBlocksHost.hidden = ct !== "text";
+      bodyBlocksHost.hidden = ct !== "text" && ct !== "shape";
       imagePathWrap.hidden = ct !== "image";
       if (ct === "empty") {
         ta.value = "";
@@ -1214,7 +1260,7 @@ export function createFrameCellStagingUi(deps) {
         bodyCap.textContent = "Image";
       } else if (ct === "html") {
         bodyCap.textContent = "HTML";
-      } else if (ct === "text") {
+      } else if (ct === "text" || ct === "shape") {
         bodyCap.textContent = "Content blocks";
       } else {
         bodyCap.textContent = "Text";
@@ -1288,6 +1334,8 @@ export function createFrameCellStagingUi(deps) {
         body = readImageBodyFromForm();
       } else if (ct === "text") {
         body = blocksToPlainBody(bodyBlocksEditor.getBlocks());
+      } else if (ct === "shape") {
+        body = blocksToPlainBody(bodyBlocksEditor.getBlocks());
       } else {
         body = ta.value;
       }
@@ -1309,7 +1357,7 @@ export function createFrameCellStagingUi(deps) {
         ),
         textStyle: null,
       };
-      if (ct === "text") {
+      if (ct === "text" || ct === "shape") {
         const fs = parseInt(String(ffSizeIn.value), 10) || 16;
         const lh = parseInt(String(lhIn.value), 10) || 100;
         const blocks = normalizeBodyBlocks(bodyBlocksEditor.getBlocks());
@@ -1426,6 +1474,9 @@ export function createFrameCellStagingUi(deps) {
       } else if (ct === "shape") {
         ta.value = "";
         applyShapeStyleInputs(cell.shapeStyle || readShapeStyleFromMount() || DEFAULT_SHAPE_STYLE);
+        const ts = cell.textStyle || {};
+        applyTextStyleInputs(ts);
+        applyBodyBlocksToEditor(resolveBodyBlocks(ts, cell.body != null ? String(cell.body) : ""));
       } else if (ct === "text") {
         ta.value = "";
         const ts = cell.textStyle || readTextStyleFromMount();

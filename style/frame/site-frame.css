@@ -32,7 +32,40 @@ body.page-home .column-slot--name .site-frame__cell-mount.site-frame__cell-mount
   display: flex;
   flex-direction: column;
   min-height: 3rem;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* Contact namecard: one stack cell fills the viewport so layers + frame-% shapes size correctly. */
+body.page-contact main[data-site-frame-page] {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 100dvh;
+  height: 100dvh;
+}
+
+body.page-contact .column-slot--contact {
+  min-height: 100dvh;
+}
+
+body.page-contact .site-frame__cell-mount--stack,
+body.page-contact .site-frame__cell-stack--overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  min-height: 0;
+  height: auto;
+}
+
+body.page-contact .site-frame__cell-stack--overlay .site-frame__cell-layer-inner {
+  pointer-events: auto;
+}
+
+body.page-contact .site-frame__cell-mount--frame-placed .site-frame__cell-shape-wrap {
+  pointer-events: auto;
 }
 
 .site-frame__cell-stack {
@@ -183,6 +216,80 @@ html.staging .site-frame__cell-mount--placement-dragging .site-frame__cell-place
   display: block;
   flex-shrink: 0;
   overflow: visible;
+}
+
+.site-frame__cell-shape-card {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+}
+
+.site-frame__cell-shape-card--has-text .site-frame__cell-shape-text {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  pointer-events: none;
+  line-height: normal;
+}
+
+.site-frame__cell-shape-card--has-text .site-frame__cell-text--in-shape {
+  color: #111111;
+}
+
+.site-frame__cell-shape-card--has-text .site-frame__cell-shape-text-scale {
+  box-sizing: border-box;
+}
+
+.site-frame__cell-shape-card--has-text .site-frame__cell-text--in-shape {
+  pointer-events: auto;
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.site-frame__cell-shape-card--has-text .site-frame__cell-text-body {
+  margin: 0;
+}
+
+.site-frame__cell-shape-text-scale--namecard {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.site-frame__cell-text--namecard {
+  width: 100%;
+  max-width: 100%;
+  text-align: center;
+}
+
+.site-frame__cell-text-body--namecard {
+  width: 100%;
+}
+
+.site-frame__namecard-line {
+  display: block;
+}
+
+.site-frame__namecard-line--title {
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 0 0 0.7em;
+  letter-spacing: 0.01em;
+}
+
+.site-frame__namecard-line--sub {
+  font-size: 1em;
+  font-weight: 400;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.site-frame__namecard-line--sub + .site-frame__namecard-line--sub {
+  margin-top: 0.2em;
 }
 
 .site-frame__cell-text {

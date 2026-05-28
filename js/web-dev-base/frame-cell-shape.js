@@ -6,7 +6,7 @@ import { parsePlacementPct, resolvePlacementMeasureRect } from "./frame-cell-pla
 import { clampFrameCellScalePct } from "./frame-cell-scale.js";
 
 /** @typedef {'square' | 'triangle' | 'circle'} ShapeKind */
-/** @typedef {'keep_ratio' | 'stretch_grid'} ShapeSizeMode */
+/** @typedef {'keep_ratio' | 'stretch_grid' | 'fixed_px'} ShapeSizeMode */
 
 /**
  * @typedef {{
@@ -14,6 +14,8 @@ import { clampFrameCellScalePct } from "./frame-cell-scale.js";
  *   sizeMode: ShapeSizeMode,
  *   widthPct: number,
  *   heightPct: number,
+ *   widthPx: number,
+ *   heightPx: number,
  *   objectAlign: string,
  *   rotationDeg: number,
  *   cornerRadiusPct: number,
@@ -27,17 +29,21 @@ import { clampFrameCellScalePct } from "./frame-cell-scale.js";
  *   linkHref: string,
  *   placementLeftPct: number | null,
  *   placementTopPct: number | null,
+ *   textPadding: string,
+ *   textColor: string,
  * }} ShapeStyle
  */
 
 export const SHAPE_KINDS = /** @type {const} */ (["square", "triangle", "circle"]);
-export const SHAPE_SIZE_MODES = /** @type {const} */ (["keep_ratio", "stretch_grid"]);
+export const SHAPE_SIZE_MODES = /** @type {const} */ (["keep_ratio", "stretch_grid", "fixed_px"]);
 
 export const DEFAULT_SHAPE_STYLE = /** @type {ShapeStyle} */ ({
   shapeKind: "square",
   sizeMode: "keep_ratio",
   widthPct: 40,
   heightPct: 40,
+  widthPx: 280,
+  heightPx: 120,
   objectAlign: "center",
   rotationDeg: 0,
   cornerRadiusPct: 0,
@@ -51,6 +57,8 @@ export const DEFAULT_SHAPE_STYLE = /** @type {ShapeStyle} */ ({
   linkHref: "",
   placementLeftPct: null,
   placementTopPct: null,
+  textPadding: "",
+  textColor: "",
 });
 
 /** @type {ReadonlySet<string>} */
@@ -88,7 +96,13 @@ export function parseShapeSizeMode(raw) {
     .trim()
     .toLowerCase()
     .replace(/-/g, "_");
-  return s === "stretch_grid" || s === "stretch" ? "stretch_grid" : "keep_ratio";
+  if (s === "stretch_grid" || s === "stretch") {
+    return "stretch_grid";
+  }
+  if (s === "fixed_px" || s === "fixedpx" || s === "fixed") {
+    return "fixed_px";
+  }
+  return "keep_ratio";
 }
 
 /**
@@ -105,7 +119,7 @@ export function isShapeKeepRatio(style) {
  */
 export function shapeScalePctFromStyle(style) {
   const s = normalizeShapeStyle(style);
-  return Math.max(s.widthPct, s.heightPct);
+  return s.widthPct;
 }
 
 /**
@@ -165,17 +179,21 @@ export function normalizeShapeStyle(raw) {
   let heightPct = clampFrameCellScalePct(o.heightPct ?? o.height_pct, DEFAULT_SHAPE_STYLE.heightPct);
   if (sizeMode === "keep_ratio") {
     const scale = clampFrameCellScalePct(
-      o.scalePct ?? Math.max(widthPct, heightPct),
-      Math.max(widthPct, heightPct),
+      o.scalePct ?? o.widthPct ?? o.heightPct,
+      widthPct,
     );
     widthPct = scale;
     heightPct = scale;
   }
+  const widthPx = clampInt(o.widthPx ?? o.width_px, 1, 4000, DEFAULT_SHAPE_STYLE.widthPx);
+  const heightPx = clampInt(o.heightPx ?? o.height_px, 1, 4000, DEFAULT_SHAPE_STYLE.heightPx);
   return {
     shapeKind,
     sizeMode,
     widthPct,
     heightPct,
+    widthPx,
+    heightPx,
     objectAlign,
     rotationDeg: clampInt(o.rotationDeg ?? o.rotation_deg, 0, 360, 0),
     cornerRadiusPct: clampInt(o.cornerRadiusPct ?? o.corner_radius_pct, 0, 50, 0),
@@ -197,6 +215,10 @@ export function normalizeShapeStyle(raw) {
     linkHref: String(o.linkHref || o.link_href || "").trim(),
     placementLeftPct: parsePlacementPct(o.placementLeftPct ?? o.placement_left_pct),
     placementTopPct: parsePlacementPct(o.placementTopPct ?? o.placement_top_pct),
+    textPadding: String(o.textPadding ?? o.text_padding ?? "")
+      .trim()
+      .slice(0, 120),
+    textColor: sanitizeShapeColor(o.textColor ?? o.text_color) || "",
   };
 }
 
@@ -204,6 +226,33 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** @type {WeakMap<SVGElement, ResizeObserver>} */
 const shapeGridObservers = new WeakMap();
+
+/**
+ * Fixed px size: cap at design dimensions; shrink uniformly when the measure box is smaller.
+ * @param {number} widthPx
+ * @param {number} heightPx
+ * @param {number} measureWidth
+ * @param {number} measureHeight
+ * @returns {{ width: number, height: number }}
+ */
+export function resolveFixedPxShapeDimensions(widthPx, heightPx, measureWidth, measureHeight) {
+  const wPx = Math.max(1, widthPx);
+  const hPx = Math.max(1, heightPx);
+  const scale = Math.min(1, measureWidth / wPx, measureHeight / hPx);
+  return { width: wPx * scale, height: hPx * scale };
+}
+
+/**
+ * @param {SVGElement} svg
+ * @param {ShapeSizeMode} sizeMode
+ */
+function syncShapeSvgAspectRatio(svg, sizeMode) {
+  if (sizeMode === "stretch_grid" || sizeMode === "fixed_px") {
+    svg.setAttribute("preserveAspectRatio", "none");
+  } else {
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  }
+}
 
 /**
  * @param {SVGElement} svg
@@ -226,6 +275,7 @@ function disconnectShapeGridObserver(svg) {
 export function applyShapeGridDimensions(svg, style, contextEl, relativeToFrame = false) {
   disconnectShapeGridObserver(svg);
   const s = normalizeShapeStyle(style);
+  syncShapeSvgAspectRatio(svg, s.sizeMode);
   const frameRoot =
     contextEl && typeof contextEl.closest === "function"
       ? contextEl.closest("[data-site-frame-page]")
@@ -268,8 +318,14 @@ export function applyShapeGridDimensions(svg, style, contextEl, relativeToFrame 
     svg.classList.add("site-frame__cell-shape--grid-sized");
     svg.removeAttribute("width");
     svg.removeAttribute("height");
-    svg.style.width = `${(mw * s.widthPct) / 100}px`;
-    svg.style.height = `${(mh * s.heightPct) / 100}px`;
+    if (s.sizeMode === "fixed_px") {
+      const dim = resolveFixedPxShapeDimensions(s.widthPx, s.heightPx, mw, mh);
+      svg.style.width = `${dim.width}px`;
+      svg.style.height = `${dim.height}px`;
+    } else {
+      svg.style.width = `${(mw * s.widthPct) / 100}px`;
+      svg.style.height = `${(mh * s.heightPct) / 100}px`;
+    }
   };
 
   applyFromMeasureRoot();
@@ -292,11 +348,7 @@ export function createShapeSvgElement(s, contextEl, options = {}) {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("class", "site-frame__cell-shape");
   svg.setAttribute("viewBox", "0 0 100 100");
-  if (style.sizeMode === "stretch_grid") {
-    svg.setAttribute("preserveAspectRatio", "none");
-  } else {
-    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-  }
+  syncShapeSvgAspectRatio(svg, style.sizeMode);
   applyShapeGridDimensions(svg, style, contextEl, options.relativeToFrame === true);
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");

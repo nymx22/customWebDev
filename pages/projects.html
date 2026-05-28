@@ -18,7 +18,7 @@
   <!-- 2×2 frame: cell 0 = project list (SQLite), cell 3 = photographer image → contact. -->
   <main
     class="portfolio column-layout column-layout--rows-2 page-home-main"
-    data-site-frame-page="index-copy"
+    data-site-frame-page="projects"
   >
     <div class="column-slot column-slot--projects">
       <div class="site-frame__cell-mount" data-frame-cell-index="0"></div>
@@ -36,7 +36,7 @@
 
   <script type="module">
     import { mountSiteFramePage } from "../js/web-dev-base/site-frame.js";
-    mountSiteFramePage({ pageName: "index-copy", rootSelector: "main.page-home-main" });
+    mountSiteFramePage({ pageName: "projects", rootSelector: "main.page-home-main" });
   </script>
 </body>
 </html>

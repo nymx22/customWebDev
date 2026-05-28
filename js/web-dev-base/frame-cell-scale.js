@@ -2,7 +2,7 @@
  * Shared scale range for image `scalePct` and shape width/height (% of frame grid).
  */
 
-export const FRAME_CELL_SCALE_MIN = 5;
+export const FRAME_CELL_SCALE_MIN = 1;
 export const FRAME_CELL_SCALE_MAX = 250;
 
 /**

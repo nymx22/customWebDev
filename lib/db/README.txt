@@ -1,4 +1,6 @@
-SQLite store: lib/db/customdev.db (layout SSOT)
+Layout truth in git: data/layout/*.json (deploy / live preview without ?staging=1)
+
+Local scratch pad only (not in git): lib/db/customdev.db
 
 Tables (see schema.sql):
 
@@ -91,18 +93,34 @@ Local layout API (read/write this DB during staging):
 
 Staging in the browser uses this API for the **Pages, frames & galleries** dialog, per-gallery layout in the “Gallery testing” panel, and the **Frame** editor on pages with `data-site-frame-page` (label + panel from `js/web-dev-base/staging-gui-settings.js`, wired by `site-frame.js`; see lib/staging/staging.txt).
 
-Static deploy (Option B — bake DB to JSON):
+Workflow (hybrid — see data/layout/README.txt):
+
+  Clone / new machine:
+    npm run setup:layout     — create lib/db/customdev.db from data/layout/ (gitignored)
+
+  Edit copy / links (JSON):
+    edit data/layout/frame/*.json or gallery/*/*.json
+    npm run import:layout    — reload into local DB
+    open page without ?staging=1 — preview matches deploy (baked only)
+
+  Edit placement / scale / gallery layout (staging GUI):
+    npm run dev:api
+    open ?staging=1 — PATCH SQLite via API
+    npm run export:layout    — bake to data/layout/; commit JSON
+
+  Staging **Publish** also POST /api/export-layout after saving SQLite.
+
+  Live / production: baked JSON only (no API). Staging: API + SQLite.
+
+Static deploy (Option B):
 
   npm run export:layout
   # writes data/layout/ (frame/*.json, gallery/<page>/<key>.json, manifest.json)
 
-  Staging **Publish** also calls POST /api/export-layout after saving SQLite.
-
-  On **official-live** pages, the site loads baked JSON from data/layout/ (see data/layout/README.txt and js/web-dev-base/layout-baked.js). No Python API is required on the public host — deploy static files + data/layout/ only.
-
 CI (GitHub Actions):
 
-  npm test                  — frame placement % math (lib/tests/frame-placement.test.mjs)
-  npm run test:layout-parity — export_layout.py then compare SQLite vs data/layout/frame/*.json
+  npm run setup:layout
+  npm test
+  npm run test:layout-parity — import → export must not change committed data/layout/
 
   Workflow: .github/workflows/ci.yml (push/PR to main or master).
